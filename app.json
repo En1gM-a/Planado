@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Planado",
+    "slug": "planado",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "planado",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.planado.app"
+    },
+    "android": {
+      "package": "com.planado.app",
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-splash-screen"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
