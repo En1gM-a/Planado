@@ -1,13 +1,11 @@
-import type { User } from '@supabase/supabase-js';
+import { makeRedirectUri } from 'expo-auth-session';
+import * as QueryParams from 'expo-auth-session/build/QueryParams';
+import * as WebBrowser from 'expo-web-browser';
+import type { Session, User } from '@supabase/supabase-js';
 
 import { supabase } from './supabase';
 
-export interface SignUpInput {
-  email: string;
-  password: string;
-  username: string;
-  displayName: string;
-}
+WebBrowser.maybeCompleteAuthSession();
 
 export interface ProfileUpdate {
   username?: string;
@@ -15,22 +13,74 @@ export interface ProfileUpdate {
   avatar_url?: string | null;
   bio?: string | null;
   timezone?: string;
+  onboarding_completed?: boolean;
 }
 
-export async function signUp({
-  email,
-  password,
-  username,
-  displayName,
-}: SignUpInput) {
-  const { data, error } = await supabase.auth.signUp({
-    email: email.trim().toLowerCase(),
-    password,
+const googleRedirectUri = makeRedirectUri({
+  scheme: 'planado',
+  path: 'auth/callback',
+});
+
+async function createSessionFromUrl(url: string): Promise<Session> {
+  const { params, errorCode } = QueryParams.getQueryParams(url);
+
+  if (errorCode) {
+    const description =
+      typeof params.error_description === 'string'
+        ? params.error_description
+        : errorCode;
+
+    throw new Error(description);
+  }
+
+  // Support PKCE redirects if Supabase returns an authorization code.
+  if (typeof params.code === 'string') {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(
+      params.code,
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data.session) {
+      throw new Error('Google sign-in completed without a valid session.');
+    }
+
+    return data.session;
+  }
+
+  // Supabase's native OAuth flow normally returns tokens in the URL fragment.
+  const accessToken = params.access_token;
+  const refreshToken = params.refresh_token;
+
+  if (typeof accessToken !== 'string' || typeof refreshToken !== 'string') {
+    throw new Error('Google sign-in completed without a valid session.');
+  }
+
+  const { data, error } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data.session) {
+    throw new Error('Google sign-in completed without a valid session.');
+  }
+
+  return data.session;
+}
+
+export async function signInWithGoogle(): Promise<Session | null> {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
     options: {
-      data: {
-        username: username.trim().toLowerCase(),
-        display_name: displayName.trim(),
-      },
+      redirectTo: googleRedirectUri,
+      skipBrowserRedirect: true,
+      scopes: 'openid email profile',
     },
   });
 
@@ -38,20 +88,20 @@ export async function signUp({
     throw error;
   }
 
-  return data;
-}
-
-export async function signIn(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: email.trim().toLowerCase(),
-    password,
-  });
-
-  if (error) {
-    throw error;
+  if (!data.url) {
+    throw new Error('Supabase did not return a Google authorization URL.');
   }
 
-  return data;
+  const result = await WebBrowser.openAuthSessionAsync(
+    data.url,
+    googleRedirectUri,
+  );
+
+  if (result.type !== 'success') {
+    return null;
+  }
+
+  return createSessionFromUrl(result.url);
 }
 
 export async function signOut() {
@@ -82,33 +132,6 @@ export async function getCurrentUser(): Promise<User | null> {
   return data.user;
 }
 
-export async function sendPasswordReset(email: string) {
-  const { data, error } = await supabase.auth.resetPasswordForEmail(
-    email.trim().toLowerCase(),
-    {
-      redirectTo: 'planado://reset-password',
-    },
-  );
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
-export async function updatePassword(password: string) {
-  const { data, error } = await supabase.auth.updateUser({
-    password,
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
 export async function getMyProfile() {
   const user = await getCurrentUser();
 
@@ -133,7 +156,7 @@ export async function updateMyProfile(changes: ProfileUpdate) {
   const user = await getCurrentUser();
 
   if (!user) {
-    throw new Error('You must be logged in to update your profile.');
+    throw new Error('You must be signed in to update your profile.');
   }
 
   const { data, error } = await supabase
@@ -148,4 +171,8 @@ export async function updateMyProfile(changes: ProfileUpdate) {
   }
 
   return data;
+}
+
+export function getGoogleRedirectUri() {
+  return googleRedirectUri;
 }
