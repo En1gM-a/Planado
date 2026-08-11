@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type Href, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +16,7 @@ import {
 
 import { useAuth } from '../../hooks/useAuth';
 import { getMyProfile } from '../../services/authService';
+import { getMyUnreadNotificationCount } from '../../services/notificationService';
 import { supabase } from '../../services/supabase';
 
 type Profile = {
@@ -94,6 +96,7 @@ function formatEventDay(dateValue: string) {
 }
 
 export default function HomeScreen() {
+  const router = useRouter();
   const { user } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -127,11 +130,7 @@ export default function HomeScreen() {
             .gte('end_time', new Date().toISOString())
             .order('start_time', { ascending: true })
             .limit(5),
-          supabase
-            .from('notifications')
-            .select('id', { count: 'exact', head: true })
-            .eq('user_id', user.id)
-            .is('read_at', null),
+          getMyUnreadNotificationCount(),
           supabase
             .from('ai_summaries')
             .select('summary, created_at, groups(name)')
@@ -140,7 +139,7 @@ export default function HomeScreen() {
             .maybeSingle(),
         ]);
 
-      const firstError = [membershipResult, eventResult, notificationResult, summaryResult]
+      const firstError = [membershipResult, eventResult, summaryResult]
         .map((result) => result.error)
         .find(Boolean);
       if (firstError) throw firstError;
@@ -178,7 +177,7 @@ export default function HomeScreen() {
       setProfile(profileData as Profile | null);
       setGroups(mappedGroups);
       setEvents(mappedEvents);
-      setUnreadCount(notificationResult.count ?? 0);
+      setUnreadCount(notificationResult);
       setSummary(
         latestSummary
           ? {
@@ -197,9 +196,11 @@ export default function HomeScreen() {
     }
   }, [user]);
 
-  useEffect(() => {
-    void loadDashboard();
-  }, [loadDashboard]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadDashboard();
+    }, [loadDashboard]),
+  );
 
   const days = useMemo(() => {
     const today = new Date();
@@ -257,7 +258,7 @@ export default function HomeScreen() {
             <View style={styles.headerActions}>
               <Pressable
                 accessibilityLabel="Notifications"
-                onPress={() => showComingSoon('Notifications')}
+                onPress={() => router.push('/notifications' as Href)}
                 style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
               >
                 <Ionicons color={COLORS.ink} name="notifications-outline" size={20} />
