@@ -1,0 +1,37 @@
+# Dependencies are installed by EAS from package-lock.json.
+node_modules/
+
+# Local Expo state and environment values.
+.expo/
+.env
+.env.*
+!.env.example
+*.log
+
+# Git and editor-only files.
+.git/
+.github/
+.vscode/
+.idea/
+.codex/
+
+# Android outputs generated on the local Windows machine. These contain
+# absolute Windows paths and must be regenerated on the Linux EAS worker.
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+android/**/*.iml
+
+# Generated binaries and temporary exports.
+*.apk
+*.aab
+dist/
+web-build/
+.codex-web-export/
+
+# OS files.
+.DS_Store
+Thumbs.db
