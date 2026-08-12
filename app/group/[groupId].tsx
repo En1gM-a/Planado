@@ -7,6 +7,7 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -32,6 +33,7 @@ import {
   type GroupRole,
 } from '../../services/groupService';
 import { supabase } from '../../services/supabase';
+import { makeGroupWidget } from '../../services/widgetService';
 
 const COLORS = {
   background: '#F6F6FB',
@@ -88,6 +90,7 @@ export default function GroupDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [widgetLoading, setWidgetLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadDetails = useCallback(async (isRefresh = false) => {
@@ -116,7 +119,7 @@ export default function GroupDetailScreen() {
   useEffect(() => {
     if (!groupId || !user) return;
     const channel = supabase
-      .channel(`group-detail:${groupId}`)
+      .channel(`group-detail:${groupId}:${Date.now()}:${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members', filter: `group_id=eq.${groupId}` }, () => {
         void loadDetails(true);
       })
@@ -139,6 +142,39 @@ export default function GroupDetailScreen() {
   );
   const myRole = details?.group.role;
   const canManageInvites = myRole === 'owner' || myRole === 'admin';
+
+  async function createWidget() {
+    if (!groupId || !details || widgetLoading) return;
+    if (Platform.OS !== 'android') {
+      Alert.alert('Android feature', 'Planado home-screen widgets are currently available in the installed Android app.');
+      return;
+    }
+
+    setWidgetLoading(true);
+    try {
+      const result = await makeGroupWidget(groupId, details.group.name);
+      Alert.alert(
+        result.pinRequested ? 'Add Planado widget' : 'Widget is ready',
+        result.pinRequested
+          ? 'Confirm the Android home-screen prompt to add this group.'
+          : 'Long-press your home screen, open Widgets, and choose Planado. This group is already selected.',
+      );
+    } catch (widgetError) {
+      Alert.alert('Could not make widget', errorMessage(widgetError, 'Please try again.'));
+    } finally {
+      setWidgetLoading(false);
+    }
+  }
+
+  function openGroupMenu() {
+    const options: Array<{ text: string; style?: 'default' | 'cancel' | 'destructive'; onPress?: () => void }> = [];
+    if (canManageInvites) options.push({ text: 'Invite members', onPress: () => setInviteOpen(true) });
+    options.push({ text: 'View calendar', onPress: () => router.push('/(tabs)/calendar' as Href) });
+    if (myRole === 'owner') options.push({ text: 'Delete group', style: 'destructive', onPress: confirmDelete });
+    else options.push({ text: 'Leave group', style: 'destructive', onPress: confirmLeave });
+    options.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert(details?.group.name ?? 'Group options', 'Choose an action', options);
+  }
 
   function canManageMember(member: GroupMember) {
     if (!user || member.user_id === user.id || member.role === 'owner') return false;
@@ -312,9 +348,9 @@ export default function GroupDetailScreen() {
               <Ionicons color={COLORS.ink} name="arrow-back" size={21} />
             </Pressable>
             <Text numberOfLines={1} style={styles.headerTitle}>{group.name}</Text>
-            <View style={styles.headerButton}>
+            <Pressable accessibilityLabel="Group options" disabled={actionLoading} onPress={openGroupMenu} style={styles.headerButton}>
               {actionLoading ? <ActivityIndicator color={COLORS.primary} size="small" /> : <Ionicons color={COLORS.muted} name="ellipsis-horizontal" size={20} />}
-            </View>
+            </Pressable>
           </View>
 
           <View style={[styles.hero, { backgroundColor: group.color }]}>
@@ -367,6 +403,43 @@ export default function GroupDetailScreen() {
               <Text style={styles.roleCardValue}>{roleLabel(group.role)}</Text>
             </View>
           </View>
+
+          <Pressable disabled={widgetLoading} onPress={() => void createWidget()} style={({ pressed }) => [styles.widgetCard, pressed && styles.pressed]}>
+            <View style={styles.widgetIcon}>
+              {widgetLoading ? <ActivityIndicator color={COLORS.primary} size="small" /> : <Ionicons color={COLORS.primary} name="apps-outline" size={23} />}
+            </View>
+            <View style={styles.widgetCopy}>
+              <View style={styles.widgetTitleRow}>
+                <Text style={styles.widgetTitle}>Make widget</Text>
+                <View style={styles.androidBadge}><Ionicons color={COLORS.green} name="logo-android" size={11} /><Text style={styles.androidBadgeText}>ANDROID</Text></View>
+              </View>
+              <Text style={styles.widgetBody}>Show this group’s events for today and tomorrow on your home screen.</Text>
+            </View>
+            <Ionicons color={COLORS.faint} name="chevron-forward" size={18} />
+          </Pressable>
+
+          {group.group_type === 'cit_u_classmates' ? (
+            <View style={styles.citConnectionCard}>
+              <View style={styles.citConnectionIcon}>
+                <Ionicons color={COLORS.primary} name="school-outline" size={24} />
+              </View>
+              <View style={styles.citConnectionCopy}>
+                <Text style={styles.citConnectionEyebrow}>CIT-U SCHEDULE</Text>
+                <Text style={styles.citConnectionTitle}>Import from Wildcat One</Text>
+                <Text style={styles.citConnectionBody}>Sign in privately, review your classes, then add them to your calendar.</Text>
+                <View style={styles.citConnectionStatus}>
+                  <Ionicons color={COLORS.green} name="shield-checkmark-outline" size={13} />
+                  <Text style={styles.citConnectionStatusText}>Private · owner approved</Text>
+                </View>
+              </View>
+              <Pressable
+                onPress={() => router.push({ pathname: '/cit-u/connect', params: { groupId } } as Href)}
+                style={styles.citConnectionButton}
+              >
+                <Text style={styles.citConnectionButtonText}>Connect</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           <View style={styles.sectionHeader}>
             <View>
@@ -429,7 +502,7 @@ export default function GroupDetailScreen() {
           {details.upcoming_events.length ? (
             <View style={styles.eventList}>
               {details.upcoming_events.map((event) => (
-                <View key={event.id} style={styles.eventCard}>
+                <Pressable key={event.id} onPress={() => router.push(`/event/${event.id}` as Href)} style={({ pressed }) => [styles.eventCard, pressed && styles.pressed]}>
                   <View style={[styles.eventDate, { backgroundColor: `${event.color ?? group.color}18` }]}>
                     <Text style={[styles.eventDateMonth, { color: event.color ?? group.color }]}>{new Intl.DateTimeFormat(undefined, { month: 'short' }).format(new Date(event.start_time)).toUpperCase()}</Text>
                     <Text style={[styles.eventDateNumber, { color: event.color ?? group.color }]}>{new Date(event.start_time).getDate()}</Text>
@@ -439,7 +512,7 @@ export default function GroupDetailScreen() {
                     <Text style={styles.eventTime}>{new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(event.start_time))}</Text>
                   </View>
                   <Ionicons color={COLORS.faint} name="calendar-outline" size={19} />
-                </View>
+                </Pressable>
               ))}
             </View>
           ) : (
@@ -658,6 +731,24 @@ const styles = StyleSheet.create({
   roleCard: { flex: 1, minHeight: 76, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.surface },
   roleCardLabel: { color: COLORS.faint, fontSize: 7, fontWeight: '900', letterSpacing: 0.7 },
   roleCardValue: { marginTop: 5, color: COLORS.primary, fontSize: 12, fontWeight: '900' },
+  widgetCard: { minHeight: 78, marginTop: 10, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.surface },
+  widgetIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: COLORS.primarySoft },
+  widgetCopy: { flex: 1 },
+  widgetTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  widgetTitle: { color: COLORS.ink, fontSize: 11, fontWeight: '900' },
+  widgetBody: { marginTop: 4, color: COLORS.muted, fontSize: 8, lineHeight: 12 },
+  androidBadge: { paddingVertical: 3, paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 8, backgroundColor: COLORS.greenSoft },
+  androidBadgeText: { color: COLORS.green, fontSize: 6, fontWeight: '900', letterSpacing: 0.4 },
+  citConnectionCard: { marginTop: 10, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderColor: '#DDDDF5', borderRadius: 20, backgroundColor: '#FAFAFF' },
+  citConnectionIcon: { width: 47, height: 47, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: COLORS.primarySoft },
+  citConnectionCopy: { flex: 1 },
+  citConnectionEyebrow: { color: COLORS.primary, fontSize: 7, fontWeight: '900', letterSpacing: 0.8 },
+  citConnectionTitle: { marginTop: 3, color: COLORS.ink, fontSize: 11, fontWeight: '900' },
+  citConnectionBody: { marginTop: 4, color: COLORS.muted, fontSize: 8, lineHeight: 12 },
+  citConnectionStatus: { marginTop: 7, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  citConnectionStatusText: { flex: 1, color: COLORS.green, fontSize: 7, fontWeight: '800' },
+  citConnectionButton: { minHeight: 38, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: COLORS.primary },
+  citConnectionButtonText: { color: '#FFFFFF', fontSize: 8, fontWeight: '900' },
   pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
   sectionHeader: { marginTop: 25, marginBottom: 11, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   sectionTitle: { color: COLORS.ink, fontSize: 18, fontWeight: '900', letterSpacing: -0.35 },

@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Redirect, useFocusEffect, useRouter } from 'expo-router';
+import { type Href, Redirect, useFocusEffect, useRouter } from 'expo-router';
 import { type ComponentProps, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -131,7 +131,7 @@ export default function NotificationsScreen() {
     if (!user) return;
 
     const channel = supabase
-      .channel(`notifications:${user.id}`)
+      .channel(`notifications:${user.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         {
@@ -172,21 +172,24 @@ export default function NotificationsScreen() {
   }, [visibleNotifications]);
 
   async function openNotification(notification: PlanadoNotification) {
-    if (notification.read_at) return;
+    if (!notification.read_at) {
+      const readAt = new Date().toISOString();
+      setNotifications((current) =>
+        current.map((item) =>
+          item.id === notification.id ? { ...item, read_at: readAt } : item,
+        ),
+      );
 
-    const readAt = new Date().toISOString();
-    setNotifications((current) =>
-      current.map((item) =>
-        item.id === notification.id ? { ...item, read_at: readAt } : item,
-      ),
-    );
-
-    try {
-      await markNotificationAsRead(notification.id);
-    } catch (readError) {
-      console.error('Could not mark notification as read:', readError);
-      void loadNotifications(true);
+      try {
+        await markNotificationAsRead(notification.id);
+      } catch (readError) {
+        console.error('Could not mark notification as read:', readError);
+        void loadNotifications(true);
+      }
     }
+
+    if (notification.event_id) router.push(`/event/${notification.event_id}` as Href);
+    else if (notification.group_id) router.push(`/group/${notification.group_id}` as Href);
   }
 
   async function markEverythingRead() {

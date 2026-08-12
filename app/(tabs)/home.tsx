@@ -3,7 +3,6 @@ import { type Href, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Pressable,
   RefreshControl,
@@ -230,10 +229,6 @@ export default function HomeScreen() {
     day: 'numeric',
   }).format(new Date());
 
-  function showComingSoon(feature: string) {
-    Alert.alert(`${feature} is next`, `The ${feature.toLowerCase()} flow will connect to this Home page next.`);
-  }
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -258,6 +253,8 @@ export default function HomeScreen() {
             <View style={styles.headerActions}>
               <Pressable
                 accessibilityLabel="Notifications"
+                accessibilityRole="button"
+                hitSlop={8}
                 onPress={() => router.push('/notifications' as Href)}
                 style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
               >
@@ -270,13 +267,19 @@ export default function HomeScreen() {
                   </View>
                 ) : null}
               </Pressable>
-              <View style={styles.avatar}>
+              <Pressable
+                accessibilityLabel="Open profile"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={() => router.push('/(tabs)/profile' as Href)}
+                style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}
+              >
                 {avatar ? (
                   <Image source={{ uri: avatar }} style={styles.avatarImage} />
                 ) : (
                   <Text style={styles.avatarInitial}>{firstName.charAt(0).toUpperCase()}</Text>
                 )}
-              </View>
+              </Pressable>
             </View>
           </View>
 
@@ -321,7 +324,7 @@ export default function HomeScreen() {
 
           <View style={styles.quickRow}>
             <Pressable
-              onPress={() => showComingSoon('Create event')}
+              onPress={() => router.push('/event/create' as Href)}
               style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
             >
               <View style={styles.primaryActionIcon}><Text style={styles.plus}>＋</Text></View>
@@ -331,7 +334,7 @@ export default function HomeScreen() {
               </View>
             </Pressable>
             <Pressable
-              onPress={() => showComingSoon('Join group')}
+              onPress={() => router.push({ pathname: '/(tabs)/groups', params: { open: 'join' } } as Href)}
               style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}
             >
               <Text style={styles.joinIcon}>⌁</Text>
@@ -344,7 +347,11 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitle}>Coming up</Text>
               <Text style={styles.sectionSubtitle}>Your next shared moments</Text>
             </View>
-            {events.length > 0 ? <Text style={styles.seeAll}>See calendar</Text> : null}
+            {events.length > 0 ? (
+              <Pressable hitSlop={8} onPress={() => router.push('/(tabs)/calendar' as Href)}>
+                <Text style={styles.seeAll}>See calendar</Text>
+              </Pressable>
+            ) : null}
           </View>
 
           {loading ? (
@@ -357,7 +364,7 @@ export default function HomeScreen() {
               {events.map((event) => (
                 <Pressable
                   key={event.id}
-                  onPress={() => showComingSoon('Event details')}
+                  onPress={() => router.push(`/event/${event.id}` as Href)}
                   style={({ pressed }) => [styles.eventCard, pressed && styles.pressed]}
                 >
                   <View style={[styles.eventAccent, { backgroundColor: event.color ?? COLORS.primary }]} />
@@ -393,7 +400,11 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitle}>Your groups</Text>
               <Text style={styles.sectionSubtitle}>{groups.length ? `${groups.length} active circle${groups.length === 1 ? '' : 's'}` : 'The people you plan with'}</Text>
             </View>
-            {groups.length > 0 ? <Text style={styles.seeAll}>See all</Text> : null}
+            {groups.length > 0 ? (
+              <Pressable hitSlop={8} onPress={() => router.push('/(tabs)/groups' as Href)}>
+                <Text style={styles.seeAll}>See all</Text>
+              </Pressable>
+            ) : null}
           </View>
 
           {groups.length > 0 ? (
@@ -401,7 +412,7 @@ export default function HomeScreen() {
               {groups.map((group) => (
                 <Pressable
                   key={group.id}
-                  onPress={() => showComingSoon('Group details')}
+                  onPress={() => router.push(`/group/${group.id}` as Href)}
                   style={({ pressed }) => [styles.groupCard, pressed && styles.pressed]}
                 >
                   <View style={[styles.groupArt, { backgroundColor: `${group.color}20` }]}>
@@ -418,7 +429,7 @@ export default function HomeScreen() {
             </ScrollView>
           ) : (
             <Pressable
-              onPress={() => showComingSoon('Create group')}
+              onPress={() => router.push({ pathname: '/(tabs)/groups', params: { open: 'create' } } as Href)}
               style={({ pressed }) => [styles.createGroupCard, pressed && styles.pressed]}
             >
               <View style={styles.createGroupIcon}><Text style={styles.createGroupPlus}>＋</Text></View>

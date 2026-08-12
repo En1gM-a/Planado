@@ -1,4 +1,5 @@
 <resources>
   <string name="app_name">Planado</string>
+  <string name="planado_widget_description">Today and tomorrow for a selected Planado group</string>
   <string name="expo_system_ui_user_interface_style" translatable="false">automatic</string>
 </resources>

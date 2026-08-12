@@ -2,6 +2,7 @@ import { getCurrentUser } from './authService';
 import { supabase } from './supabase';
 
 export type GroupRole = 'owner' | 'admin' | 'member';
+export type GroupType = 'general' | 'cit_u_classmates';
 
 export type PlanadoGroup = {
   id: string;
@@ -9,6 +10,7 @@ export type PlanadoGroup = {
   description: string | null;
   image_url: string | null;
   timezone: string;
+  group_type: GroupType;
   created_by: string;
   role: GroupRole;
   color: string;
@@ -58,6 +60,16 @@ export type GroupDetails = {
   }>;
 };
 
+export type GroupWidgetEvent = {
+  id: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  start_time: string;
+  end_time: string;
+  is_all_day: boolean;
+};
+
 function firstRelated<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
@@ -70,7 +82,7 @@ export async function getMyGroups(): Promise<PlanadoGroup[]> {
   const { data: memberships, error: membershipError } = await supabase
     .from('group_members')
     .select(
-      'group_id, role, color, nickname, joined_at, groups(id, name, description, image_url, timezone, created_by)',
+      'group_id, role, color, nickname, joined_at, groups(id, name, description, image_url, timezone, group_type, created_by)',
     )
     .eq('user_id', user.id)
     .order('joined_at', { ascending: true });
@@ -119,6 +131,7 @@ export async function getMyGroups(): Promise<PlanadoGroup[]> {
         description: string | null;
         image_url: string | null;
         timezone: string;
+        group_type: GroupType;
         created_by: string;
       },
     );
@@ -144,12 +157,14 @@ export async function createGroup(input: {
   description?: string;
   timezone: string;
   color: string;
+  groupType: GroupType;
 }) {
-  const { data, error } = await supabase.rpc('create_group', {
+  const { data, error } = await supabase.rpc('create_group_with_type', {
     p_name: input.name,
     p_description: input.description?.trim() || null,
     p_timezone: input.timezone,
     p_member_color: input.color,
+    p_group_type: input.groupType,
   });
 
   if (error) throw error;
@@ -173,7 +188,7 @@ export async function getGroupDetails(groupId: string): Promise<GroupDetails> {
   const [groupResult, membershipResult, membersResult, eventsResult] = await Promise.all([
     supabase
       .from('groups')
-      .select('id, name, description, image_url, timezone, created_by')
+      .select('id, name, description, image_url, timezone, group_type, created_by')
       .eq('id', groupId)
       .single(),
     supabase
@@ -249,6 +264,50 @@ export async function getGroupDetails(groupId: string): Promise<GroupDetails> {
     members,
     invites,
     upcoming_events: eventsResult.data ?? [],
+  };
+}
+
+export async function getGroupWidgetEvents(groupId: string): Promise<{
+  today: GroupWidgetEvent[];
+  tomorrow: GroupWidgetEvent[];
+  groupType: GroupType;
+}> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('You must be signed in to create a widget.');
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(todayStart.getDate() + 1);
+  const rangeEnd = new Date(tomorrowStart);
+  rangeEnd.setDate(tomorrowStart.getDate() + 1);
+
+  const [groupResult, eventResult] = await Promise.all([
+    supabase
+      .from('groups')
+      .select('group_type')
+      .eq('id', groupId)
+      .single(),
+    supabase
+      .from('events')
+      .select('id, title, description, location, start_time, end_time, is_all_day')
+      .eq('group_id', groupId)
+      .eq('status', 'active')
+      .lte('start_time', rangeEnd.toISOString())
+      .gte('end_time', todayStart.toISOString())
+      .order('start_time', { ascending: true }),
+  ]);
+
+  if (groupResult.error) throw groupResult.error;
+  if (eventResult.error) throw eventResult.error;
+  const events = (eventResult.data ?? []) as GroupWidgetEvent[];
+  const touchesDay = (event: GroupWidgetEvent, start: Date, end: Date) =>
+    new Date(event.start_time) < end && new Date(event.end_time) >= start;
+
+  return {
+    today: events.filter((event) => touchesDay(event, todayStart, tomorrowStart)),
+    tomorrow: events.filter((event) => touchesDay(event, tomorrowStart, rangeEnd)),
+    groupType: groupResult.data.group_type as GroupType,
   };
 }
 

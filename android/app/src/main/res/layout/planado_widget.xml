@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/widget_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:background="@drawable/planado_widget_background"
+  android:gravity="center_vertical"
+  android:orientation="vertical">
+
+  <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="PLANADO · TODAY &amp; TOMORROW"
+    android:textColor="#B9BAFF"
+    android:textSize="10sp"
+    android:textStyle="bold" />
+
+  <TextView
+    android:id="@+id/widget_group_name"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="3dp"
+    android:ellipsize="end"
+    android:maxLines="1"
+    android:text="Choose a Planado group"
+    android:textColor="#FFFFFF"
+    android:textSize="18sp"
+    android:textStyle="bold" />
+
+  <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="9dp"
+    android:text="TODAY"
+    android:textColor="#65D6AC"
+    android:textSize="9sp"
+    android:textStyle="bold" />
+
+  <TextView
+    android:id="@+id/widget_today_events"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="2dp"
+    android:ellipsize="end"
+    android:maxLines="4"
+    android:text="Nothing planned today"
+    android:textColor="#FFFFFF"
+    android:textSize="12sp" />
+
+  <LinearLayout
+    android:id="@+id/widget_tomorrow_section"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:orientation="vertical">
+
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="TOMORROW"
+      android:textColor="#B9BAFF"
+      android:textSize="9sp"
+      android:textStyle="bold" />
+
+    <TextView
+      android:id="@+id/widget_tomorrow_events"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:ellipsize="end"
+      android:maxLines="4"
+      android:text="Nothing planned tomorrow"
+      android:textColor="#E5E5F7"
+      android:textSize="12sp" />
+  </LinearLayout>
+</LinearLayout>

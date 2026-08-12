@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useFocusEffect } from 'expo-router';
-import { type ComponentProps, useCallback, useEffect, useMemo, useState } from 'react';
+import { type Href, useFocusEffect, useRouter } from 'expo-router';
+import { type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -42,7 +42,7 @@ const COLORS = {
   redSoft: '#FFF0F1',
 };
 
-const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
 function startOfDay(date: Date) {
   const value = new Date(date);
@@ -71,7 +71,8 @@ function eventTouchesDay(event: CalendarEvent, day: Date) {
 function calendarRange(month: Date) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   const start = new Date(first);
-  start.setDate(first.getDate() - first.getDay());
+  const daysSinceMonday = (first.getDay() + 6) % 7;
+  start.setDate(first.getDate() - daysSinceMonday);
   start.setHours(0, 0, 0, 0);
 
   const end = new Date(start);
@@ -116,6 +117,7 @@ function eventTime(event: CalendarEvent) {
 }
 
 export default function CalendarScreen() {
+  const router = useRouter();
   const { user } = useAuth();
   const today = useMemo(() => new Date(), []);
   const [visibleMonth, setVisibleMonth] = useState(
@@ -158,6 +160,11 @@ export default function CalendarScreen() {
     }
   }, [range.end, range.start, selectedGroupId, user]);
 
+  const loadCalendarRef = useRef(loadCalendar);
+  useEffect(() => {
+    loadCalendarRef.current = loadCalendar;
+  }, [loadCalendar]);
+
   useFocusEffect(
     useCallback(() => {
       void loadCalendar();
@@ -167,16 +174,16 @@ export default function CalendarScreen() {
   useEffect(() => {
     if (!user) return;
     const channel = supabase
-      .channel(`calendar:${user.id}`)
+      .channel(`calendar:${user.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => {
-        void loadCalendar(true);
+        void loadCalendarRef.current(true);
       })
       .subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadCalendar, user]);
+  }, [user]);
 
   const calendarDays = useMemo(() => {
     return Array.from({ length: 42 }, (_, index) => {
@@ -185,6 +192,11 @@ export default function CalendarScreen() {
       return date;
     });
   }, [range.start]);
+
+  const calendarWeeks = useMemo(
+    () => Array.from({ length: 6 }, (_, index) => calendarDays.slice(index * 7, index * 7 + 7)),
+    [calendarDays],
+  );
 
   const filteredEvents = useMemo(
     () =>
@@ -253,9 +265,13 @@ export default function CalendarScreen() {
               <Text style={styles.title}>Calendar</Text>
             </View>
             <Pressable
-              onPress={() =>
-                Alert.alert('Create event is next', 'The event form will be connected to this calendar next.')
-              }
+              onPress={() => router.push({
+                pathname: '/event/create',
+                params: {
+                  date: dateKey(selectedDate),
+                  ...(selectedGroupId ? { groupId: selectedGroupId } : {}),
+                },
+              } as Href)}
               style={({ pressed }) => [styles.createButton, pressed && styles.pressed]}
             >
               <Ionicons color="#FFFFFF" name="add" size={19} />
@@ -329,46 +345,50 @@ export default function CalendarScreen() {
               </View>
             ) : (
               <View style={styles.grid}>
-                {calendarDays.map((day) => {
-                  const dayEvents = filteredEvents.filter((event) => eventTouchesDay(event, day));
-                  const selected = sameDay(day, selectedDate);
-                  const isToday = sameDay(day, today);
-                  const outsideMonth = day.getMonth() !== visibleMonth.getMonth();
-                  return (
-                    <Pressable
-                      key={dateKey(day)}
-                      onPress={() => selectDay(day)}
-                      style={[styles.dayCell, selected && styles.dayCellSelected]}
-                    >
-                      <View style={[styles.dayNumberCircle, isToday && !selected && styles.todayCircle]}>
-                        <Text
-                          style={[
-                            styles.dayNumber,
-                            outsideMonth && styles.dayNumberOutside,
-                            isToday && !selected && styles.dayNumberToday,
-                            selected && styles.dayNumberSelected,
-                          ]}
+                {calendarWeeks.map((week, weekIndex) => (
+                  <View key={`week-${weekIndex}`} style={styles.weekRow}>
+                    {week.map((day) => {
+                      const dayEvents = filteredEvents.filter((event) => eventTouchesDay(event, day));
+                      const selected = sameDay(day, selectedDate);
+                      const isToday = sameDay(day, today);
+                      const outsideMonth = day.getMonth() !== visibleMonth.getMonth();
+                      return (
+                        <Pressable
+                          key={dateKey(day)}
+                          onPress={() => selectDay(day)}
+                          style={[styles.dayCell, selected && styles.dayCellSelected]}
                         >
-                          {day.getDate()}
-                        </Text>
-                      </View>
-                      <View style={styles.eventDots}>
-                        {dayEvents.slice(0, 3).map((event) => (
-                          <View
-                            key={event.id}
-                            style={[
-                              styles.eventDot,
-                              { backgroundColor: selected ? '#FFFFFF' : event.color ?? COLORS.primary },
-                            ]}
-                          />
-                        ))}
-                        {dayEvents.length > 3 ? (
-                          <Text style={[styles.moreDots, selected && styles.moreDotsSelected]}>+{dayEvents.length - 3}</Text>
-                        ) : null}
-                      </View>
-                    </Pressable>
-                  );
-                })}
+                          <View style={[styles.dayNumberCircle, isToday && !selected && styles.todayCircle]}>
+                            <Text
+                              style={[
+                                styles.dayNumber,
+                                outsideMonth && styles.dayNumberOutside,
+                                isToday && !selected && styles.dayNumberToday,
+                                selected && styles.dayNumberSelected,
+                              ]}
+                            >
+                              {day.getDate()}
+                            </Text>
+                          </View>
+                          <View style={styles.eventDots}>
+                            {dayEvents.slice(0, 3).map((event) => (
+                              <View
+                                key={event.id}
+                                style={[
+                                  styles.eventDot,
+                                  { backgroundColor: selected ? '#FFFFFF' : event.color ?? COLORS.primary },
+                                ]}
+                              />
+                            ))}
+                            {dayEvents.length > 3 ? (
+                              <Text style={[styles.moreDots, selected && styles.moreDotsSelected]}>+{dayEvents.length - 3}</Text>
+                            ) : null}
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ))}
               </View>
             )}
           </View>
@@ -377,7 +397,7 @@ export default function CalendarScreen() {
             <View>
               <Text style={styles.agendaTitle}>
                 {sameDay(selectedDate, today)
-                  ? 'Today'
+                  ? `Today · ${new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(selectedDate)}`
                   : new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(selectedDate)}
               </Text>
               <Text style={styles.agendaSubtitle}>
@@ -477,8 +497,9 @@ const styles = StyleSheet.create({
   weekday: { width: '14.285714%', color: COLORS.faint, fontSize: 7, fontWeight: '900', textAlign: 'center', letterSpacing: 0.45 },
   calendarLoading: { minHeight: 340, alignItems: 'center', justifyContent: 'center', gap: 10 },
   loadingText: { color: COLORS.muted, fontSize: 9 },
-  grid: { marginTop: 6, flexDirection: 'row', flexWrap: 'wrap' },
-  dayCell: { width: '14.285714%', height: 54, paddingTop: 4, alignItems: 'center', borderRadius: 14 },
+  grid: { marginTop: 6 },
+  weekRow: { flexDirection: 'row' },
+  dayCell: { flex: 1, height: 54, paddingTop: 4, alignItems: 'center', borderRadius: 14 },
   dayCellSelected: { backgroundColor: COLORS.primary },
   dayNumberCircle: { width: 25, height: 25, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
   todayCircle: { backgroundColor: COLORS.primarySoft },

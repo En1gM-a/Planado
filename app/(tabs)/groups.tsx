@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { type Href, useFocusEffect, useRouter } from 'expo-router';
+import { type Href, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -24,6 +24,7 @@ import {
   getMyGroups,
   joinGroupByCode,
   type GroupRole,
+  type GroupType,
   type PlanadoGroup,
 } from '../../services/groupService';
 import { supabase } from '../../services/supabase';
@@ -85,6 +86,8 @@ function nextEventLabel(group: PlanadoGroup) {
 
 export default function GroupsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ open?: string | string[] }>();
+  const requestedModal = Array.isArray(params.open) ? params.open[0] : params.open;
   const { user } = useAuth();
   const [groups, setGroups] = useState<PlanadoGroup[]>([]);
   const [search, setSearch] = useState('');
@@ -93,6 +96,12 @@ export default function GroupsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (requestedModal !== 'create' && requestedModal !== 'join') return;
+    setModal(requestedModal);
+    router.setParams({ open: '' });
+  }, [requestedModal, router]);
 
   const loadGroups = useCallback(async (isRefresh = false) => {
     if (!user) return;
@@ -120,7 +129,7 @@ export default function GroupsScreen() {
   useEffect(() => {
     if (!user) return;
     const channel = supabase
-      .channel(`groups:${user.id}`)
+      .channel(`groups:${user.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, () => {
         void loadGroups(true);
       })
@@ -308,6 +317,12 @@ export default function GroupsScreen() {
                     <Text numberOfLines={2} style={styles.groupDescription}>
                       {group.description || 'A shared space for plans, updates, and time together.'}
                     </Text>
+                    {group.group_type === 'cit_u_classmates' ? (
+                      <View style={styles.citBadge}>
+                        <Ionicons color={COLORS.primary} name="school-outline" size={11} />
+                        <Text style={styles.citBadgeText}>CIT-U</Text>
+                      </View>
+                    ) : null}
                     <View style={styles.groupMetaRow}>
                       <View style={styles.metaItem}>
                         <Ionicons color={COLORS.faint} name="people-outline" size={14} />
@@ -382,6 +397,7 @@ function GroupActionModal({
   const [timezone, setTimezone] = useState(deviceTimezone);
   const [inviteCode, setInviteCode] = useState('');
   const [color, setColor] = useState(MEMBER_COLORS[0]);
+  const [groupType, setGroupType] = useState<GroupType>('general');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -392,6 +408,7 @@ function GroupActionModal({
       setTimezone(deviceTimezone);
       setInviteCode('');
       setColor(MEMBER_COLORS[0]);
+      setGroupType('general');
       setError(null);
       setSaving(false);
     }
@@ -421,7 +438,7 @@ function GroupActionModal({
     setSaving(true);
     try {
       if (mode === 'create') {
-        await createGroup({ name: name.trim(), description, timezone, color });
+        await createGroup({ name: name.trim(), description, timezone, color, groupType });
         Alert.alert('Group created', `${name.trim()} is ready for plans.`);
       } else {
         const joined = (await joinGroupByCode(inviteCode, color)) as { name?: string } | null;
@@ -464,6 +481,29 @@ function GroupActionModal({
 
           {mode === 'create' ? (
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputLabel}>GROUP TYPE</Text>
+              <View style={styles.groupTypeRow}>
+                <Pressable
+                  onPress={() => setGroupType('general')}
+                  style={[styles.groupTypeCard, groupType === 'general' && styles.groupTypeCardActive]}
+                >
+                  <View style={[styles.groupTypeIcon, groupType === 'general' && styles.groupTypeIconActive]}>
+                    <Ionicons color={groupType === 'general' ? COLORS.primary : COLORS.muted} name="people-outline" size={20} />
+                  </View>
+                  <Text style={[styles.groupTypeTitle, groupType === 'general' && styles.groupTypeTitleActive]}>General</Text>
+                  <Text style={styles.groupTypeBody}>Friends, family, or a team</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setGroupType('cit_u_classmates')}
+                  style={[styles.groupTypeCard, groupType === 'cit_u_classmates' && styles.groupTypeCardActive]}
+                >
+                  <View style={[styles.groupTypeIcon, groupType === 'cit_u_classmates' && styles.groupTypeIconActive]}>
+                    <Ionicons color={groupType === 'cit_u_classmates' ? COLORS.primary : COLORS.muted} name="school-outline" size={20} />
+                  </View>
+                  <Text style={[styles.groupTypeTitle, groupType === 'cit_u_classmates' && styles.groupTypeTitleActive]}>CIT-U classmates</Text>
+                  <Text style={styles.groupTypeBody}>Prepare schedule connection</Text>
+                </Pressable>
+              </View>
               <Text style={styles.inputLabel}>GROUP NAME</Text>
               <View style={styles.inputShell}>
                 <Ionicons color={COLORS.faint} name="people-outline" size={18} />
@@ -583,6 +623,8 @@ const styles = StyleSheet.create({
   roleBadgeText: { color: COLORS.muted, fontSize: 6, fontWeight: '900', textTransform: 'uppercase' },
   ownerBadgeText: { color: COLORS.primary },
   groupDescription: { marginTop: 6, color: COLORS.muted, fontSize: 8, lineHeight: 13 },
+  citBadge: { alignSelf: 'flex-start', marginTop: 6, paddingVertical: 3, paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, backgroundColor: COLORS.primarySoft },
+  citBadgeText: { color: COLORS.primary, fontSize: 6, fontWeight: '900', letterSpacing: 0.5 },
   groupMetaRow: { marginTop: 8, flexDirection: 'row', gap: 12 },
   metaItem: { maxWidth: 120, flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaText: { flexShrink: 1, color: COLORS.faint, fontSize: 7, fontWeight: '700' },
@@ -609,6 +651,14 @@ const styles = StyleSheet.create({
   modalClose: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: '#F4F4F8' },
   modalError: { marginTop: 14, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 13, backgroundColor: COLORS.redSoft },
   modalErrorText: { flex: 1, color: '#9F4148', fontSize: 9, lineHeight: 14 },
+  groupTypeRow: { flexDirection: 'row', gap: 9 },
+  groupTypeCard: { flex: 1, minHeight: 116, padding: 12, borderWidth: 1, borderColor: '#DEDEE8', borderRadius: 17, backgroundColor: '#FAFAFD' },
+  groupTypeCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
+  groupTypeIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: '#F0F0F5' },
+  groupTypeIconActive: { backgroundColor: '#FFFFFF' },
+  groupTypeTitle: { marginTop: 9, color: COLORS.ink, fontSize: 10, fontWeight: '900' },
+  groupTypeTitleActive: { color: COLORS.primary },
+  groupTypeBody: { marginTop: 3, color: COLORS.muted, fontSize: 7, lineHeight: 11 },
   inputLabel: { marginTop: 16, marginBottom: 7, color: '#6E6E79', fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
   labelRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   inputShell: { minHeight: 51, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: '#DEDEE8', borderRadius: 15, backgroundColor: '#FAFAFD' },
