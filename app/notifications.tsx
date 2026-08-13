@@ -3,7 +3,6 @@ import { type Href, Redirect, useFocusEffect, useRouter } from 'expo-router';
 import { type ComponentProps, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PlanadoAlert as Alert } from '../components/PlanadoAlert';
 import { useAuth } from '../hooks/useAuth';
 import {
   deleteNotification,
@@ -343,30 +343,34 @@ export default function NotificationsScreen() {
                     const unread = !notification.read_at;
                     return (
                       <View key={notification.id}>
-                        <Pressable
-                          onPress={() => void openNotification(notification)}
-                          style={({ pressed }) => [styles.notificationRow, unread && styles.notificationRowUnread, pressed && styles.pressed]}
-                        >
-                          <View style={[styles.notificationIcon, { backgroundColor: appearance.background }]}>
-                            <Ionicons color={appearance.color} name={appearance.icon} size={21} />
-                          </View>
-                          <View style={styles.notificationCopy}>
-                            <View style={styles.notificationTitleRow}>
-                              <Text numberOfLines={1} style={[styles.notificationTitle, unread && styles.notificationTitleUnread]}>{notification.title}</Text>
-                              <Text style={styles.notificationTime}>{relativeTime(notification.created_at)}</Text>
+                        <View style={[styles.notificationRow, unread && styles.notificationRowUnread]}>
+                          <Pressable
+                            accessibilityRole="button"
+                            onPress={() => void openNotification(notification)}
+                            style={({ pressed }) => [styles.notificationMain, pressed && styles.pressed]}
+                          >
+                            <View style={[styles.notificationIcon, { backgroundColor: appearance.background }]}>
+                              <Ionicons color={appearance.color} name={appearance.icon} size={21} />
                             </View>
-                            <Text numberOfLines={3} style={styles.notificationMessage}>{notification.message}</Text>
-                          </View>
-                          {unread ? <View style={styles.unreadDot} /> : null}
+                            <View style={styles.notificationCopy}>
+                              <View style={styles.notificationTitleRow}>
+                                <Text numberOfLines={1} style={[styles.notificationTitle, unread && styles.notificationTitleUnread]}>{notification.title}</Text>
+                                <Text style={styles.notificationTime}>{relativeTime(notification.created_at)}</Text>
+                              </View>
+                              <Text numberOfLines={3} style={styles.notificationMessage}>{notification.message}</Text>
+                            </View>
+                            {unread ? <View style={styles.unreadDot} /> : null}
+                          </Pressable>
                           <Pressable
                             accessibilityLabel="Delete notification"
+                            accessibilityRole="button"
                             hitSlop={9}
                             onPress={() => confirmDelete(notification)}
                             style={styles.deleteButton}
                           >
                             <Ionicons color={COLORS.faint} name="trash-outline" size={17} />
                           </Pressable>
-                        </Pressable>
+                        </View>
                         {index < section.notifications.length - 1 ? <View style={styles.separator} /> : null}
                       </View>
                     );
@@ -436,8 +440,9 @@ const styles = StyleSheet.create({
   section: { marginBottom: 20 },
   sectionLabel: { marginBottom: 8, marginLeft: 4, color: COLORS.faint, fontSize: 8, fontWeight: '900', letterSpacing: 0.95 },
   notificationGroup: { overflow: 'hidden', borderWidth: 1, borderColor: COLORS.line, borderRadius: 21, backgroundColor: COLORS.surface },
-  notificationRow: { minHeight: 92, paddingVertical: 14, paddingLeft: 13, paddingRight: 8, flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: COLORS.surface },
+  notificationRow: { minHeight: 92, paddingRight: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface },
   notificationRowUnread: { backgroundColor: '#FCFCFF' },
+  notificationMain: { flex: 1, minHeight: 92, paddingVertical: 14, paddingLeft: 13, flexDirection: 'row', alignItems: 'center', gap: 11 },
   notificationIcon: { width: 45, height: 45, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
   notificationCopy: { flex: 1 },
   notificationTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

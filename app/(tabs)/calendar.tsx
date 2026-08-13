@@ -3,7 +3,6 @@ import { type Href, useFocusEffect, useRouter } from 'expo-router';
 import { type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -232,18 +231,6 @@ export default function CalendarScreen() {
     }
   }
 
-  function showEvent(event: CalendarEvent) {
-    const details = [
-      eventTime(event),
-      event.group_name,
-      event.location ? `Location: ${event.location}` : null,
-      event.description,
-    ]
-      .filter(Boolean)
-      .join('\n\n');
-    Alert.alert(event.title, details || 'No additional details.');
-  }
-
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <ScrollView
@@ -418,11 +405,16 @@ export default function CalendarScreen() {
             <View style={styles.eventList}>
               {selectedEvents.map((event) => {
                 const appearance = categoryAppearance(event.category);
+                const completed = new Date(event.end_time).getTime() < today.getTime();
                 return (
                   <Pressable
                     key={event.id}
-                    onPress={() => showEvent(event)}
-                    style={({ pressed }) => [styles.eventCard, pressed && styles.pressed]}
+                    onPress={() => router.push(`/event/${event.id}` as Href)}
+                    style={({ pressed }) => [
+                      styles.eventCard,
+                      completed && styles.eventCardCompleted,
+                      pressed && styles.pressed,
+                    ]}
                   >
                     <View style={[styles.eventAccent, { backgroundColor: event.color ?? appearance.color }]} />
                     <View style={[styles.eventIcon, { backgroundColor: appearance.background }]}>
@@ -435,12 +427,22 @@ export default function CalendarScreen() {
                           <Ionicons color={COLORS.faint} name="lock-closed" size={12} />
                         ) : null}
                       </View>
-                      <Text style={styles.eventTime}>{eventTime(event)}</Text>
+                      <Text style={[styles.eventTime, completed && styles.eventTimeCompleted]}>
+                        {eventTime(event)}
+                      </Text>
                       <Text numberOfLines={1} style={styles.eventMeta}>
                         {event.group_name}{event.location ? `  ·  ${event.location}` : ''}
                       </Text>
                     </View>
-                    <Ionicons color="#B3B3BE" name="chevron-forward" size={18} />
+                    <View style={styles.eventTrailing}>
+                      {completed ? (
+                        <View style={styles.completedBadge}>
+                          <Ionicons color={COLORS.green} name="checkmark" size={10} />
+                          <Text style={styles.completedBadgeText}>Done</Text>
+                        </View>
+                      ) : null}
+                      <Ionicons color="#B3B3BE" name="chevron-forward" size={18} />
+                    </View>
                   </Pressable>
                 );
               })}
@@ -519,13 +521,18 @@ const styles = StyleSheet.create({
   agendaDateNumber: { marginTop: 1, color: COLORS.primary, fontSize: 17, fontWeight: '900' },
   eventList: { gap: 9 },
   eventCard: { minHeight: 84, paddingRight: 13, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.surface },
+  eventCardCompleted: { backgroundColor: '#FAFAFC' },
   eventAccent: { width: 5, alignSelf: 'stretch' },
   eventIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
   eventCopy: { flex: 1, paddingVertical: 12 },
   eventTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   eventTitle: { flexShrink: 1, color: COLORS.ink, fontSize: 12, fontWeight: '900' },
   eventTime: { marginTop: 4, color: COLORS.primary, fontSize: 9, fontWeight: '800' },
+  eventTimeCompleted: { color: COLORS.green },
   eventMeta: { marginTop: 4, color: COLORS.muted, fontSize: 8 },
+  eventTrailing: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  completedBadge: { minHeight: 24, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 9, backgroundColor: COLORS.greenSoft },
+  completedBadgeText: { color: COLORS.green, fontSize: 7, fontWeight: '900' },
   emptyAgenda: { minHeight: 112, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: COLORS.line, borderRadius: 21, backgroundColor: COLORS.surface },
   emptyIcon: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: COLORS.primarySoft },
   emptyCopy: { flex: 1 },

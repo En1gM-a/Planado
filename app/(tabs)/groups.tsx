@@ -3,7 +3,6 @@ import { type Href, useFocusEffect, useLocalSearchParams, useRouter } from 'expo
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -18,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
 import { useAuth } from '../../hooks/useAuth';
 import {
   createGroup,

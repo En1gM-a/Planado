@@ -1,5 +1,6 @@
 import { getCurrentUser } from './authService';
 import { supabase } from './supabase';
+import { refreshGroupWidgetIfSelected } from './widgetService';
 
 export type EventCategory =
   | 'hangout'
@@ -12,6 +13,8 @@ export type EventCategory =
   | 'deadline'
   | 'personal'
   | 'other';
+
+export type EventRetentionPolicy = 'permanent' | 'temporary' | 'class_schedule';
 
 export type CalendarGroup = {
   id: string;
@@ -33,6 +36,8 @@ export type CalendarEvent = {
   color: string | null;
   visibility: 'group' | 'private';
   status: 'active' | 'cancelled';
+  retention_policy: EventRetentionPolicy;
+  delete_after: string | null;
   group_name: string;
 };
 
@@ -47,6 +52,7 @@ export type CreateEventInput = {
   isAllDay: boolean;
   color: string;
   visibility: 'group' | 'private';
+  retentionPolicy: 'permanent' | 'temporary';
 };
 
 function firstRelated<T>(value: T | T[] | null | undefined): T | null {
@@ -86,7 +92,7 @@ export async function getCalendarEvents(
   const { data, error } = await supabase
     .from('events')
     .select(
-      'id, group_id, created_by, title, description, location, category, start_time, end_time, is_all_day, color, visibility, status, groups(name)',
+      'id, group_id, created_by, title, description, location, category, start_time, end_time, is_all_day, color, visibility, status, retention_policy, delete_after, groups(name)',
     )
     .lte('start_time', rangeEnd.toISOString())
     .gte('end_time', rangeStart.toISOString())
@@ -110,6 +116,8 @@ export async function getCalendarEvents(
       color: event.color,
       visibility: event.visibility as 'group' | 'private',
       status: event.status as 'active' | 'cancelled',
+      retention_policy: event.retention_policy as EventRetentionPolicy,
+      delete_after: event.delete_after,
       group_name: group?.name ?? 'Personal plan',
     };
   });
@@ -137,11 +145,16 @@ export async function createEvent(input: CreateEventInput): Promise<CalendarEven
       color: input.color,
       visibility: input.visibility,
       status: 'active',
+      retention_policy: input.retentionPolicy,
     })
-    .select('id, group_id, created_by, title, description, location, category, start_time, end_time, is_all_day, color, visibility, status, groups(name)')
+    .select('id, group_id, created_by, title, description, location, category, start_time, end_time, is_all_day, color, visibility, status, retention_policy, delete_after, groups(name)')
     .single();
 
   if (error) throw error;
+
+  void refreshGroupWidgetIfSelected(input.groupId).catch((widgetError) => {
+    console.warn('Event created, but the widget could not refresh:', widgetError);
+  });
 
   const group = firstRelated(data.groups as unknown as { name: string });
   return {
@@ -158,6 +171,8 @@ export async function createEvent(input: CreateEventInput): Promise<CalendarEven
     color: data.color,
     visibility: data.visibility as 'group' | 'private',
     status: data.status as 'active' | 'cancelled',
+    retention_policy: data.retention_policy as EventRetentionPolicy,
+    delete_after: data.delete_after,
     group_name: group?.name ?? 'Planado group',
   };
 }
@@ -168,7 +183,7 @@ export async function getCalendarEventById(eventId: string): Promise<CalendarEve
 
   const { data, error } = await supabase
     .from('events')
-    .select('id, group_id, created_by, title, description, location, category, start_time, end_time, is_all_day, color, visibility, status, groups(name)')
+    .select('id, group_id, created_by, title, description, location, category, start_time, end_time, is_all_day, color, visibility, status, retention_policy, delete_after, groups(name)')
     .eq('id', eventId)
     .single();
 
@@ -188,6 +203,8 @@ export async function getCalendarEventById(eventId: string): Promise<CalendarEve
     color: data.color,
     visibility: data.visibility as 'group' | 'private',
     status: data.status as 'active' | 'cancelled',
+    retention_policy: data.retention_policy as EventRetentionPolicy,
+    delete_after: data.delete_after,
     group_name: group?.name ?? 'Planado group',
   };
 }

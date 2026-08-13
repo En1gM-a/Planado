@@ -18,12 +18,28 @@ function formatRange(event: CalendarEvent) {
   return `${date} · ${time.format(start)} – ${time.format(end)}`;
 }
 
+function retentionDescription(event: CalendarEvent) {
+  if (event.retention_policy === 'permanent') return 'Kept in your calendar history';
+  if (!event.delete_after) return 'Scheduled for automatic cleanup';
+  const deletionDate = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(event.delete_after));
+  return event.retention_policy === 'class_schedule'
+    ? `Class schedule · deletes after ${deletionDate}`
+    : `Temporary · deletes after ${deletionDate}`;
+}
+
 export default function EventDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ eventId?: string | string[] }>();
   const eventId = Array.isArray(params.eventId) ? params.eventId[0] : params.eventId;
   const { user, loading: authLoading } = useAuth();
   const [event, setEvent] = useState<CalendarEvent | null>(null);
+  const [completed, setCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +48,9 @@ export default function EventDetailScreen() {
     setLoading(true);
     setError(null);
     try {
-      setEvent(await getCalendarEventById(eventId));
+      const nextEvent = await getCalendarEventById(eventId);
+      setEvent(nextEvent);
+      setCompleted(new Date(nextEvent.end_time).getTime() < Date.now());
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'This event could not be loaded.');
     } finally {
@@ -70,6 +88,12 @@ export default function EventDetailScreen() {
           <View style={[styles.hero, { backgroundColor: accent }]}>
             <View style={styles.heroGlow} />
             <View style={styles.heroIcon}><Ionicons color={accent} name="calendar" size={28} /></View>
+            {completed ? (
+              <View style={styles.completedBadge}>
+                <Ionicons color="#FFFFFF" name="checkmark-circle" size={13} />
+                <Text style={styles.completedBadgeText}>COMPLETED</Text>
+              </View>
+            ) : null}
             <Text style={styles.category}>{event.category.toUpperCase()}</Text>
             <Text style={styles.title}>{event.title}</Text>
             <Text style={styles.heroMeta}>{event.group_name}</Text>
@@ -83,6 +107,8 @@ export default function EventDetailScreen() {
             <DetailRow icon="location-outline" label="LOCATION" value={event.location || 'No location added'} color={accent} />
             <View style={styles.separator} />
             <DetailRow icon={event.visibility === 'private' ? 'lock-closed-outline' : 'globe-outline'} label="VISIBILITY" value={event.visibility === 'private' ? 'Only visible to you' : 'Visible to group members'} color={accent} />
+            <View style={styles.separator} />
+            <DetailRow icon={event.retention_policy === 'permanent' ? 'archive-outline' : 'timer-outline'} label="RETENTION" value={retentionDescription(event)} color={accent} />
           </View>
 
           <Text style={styles.sectionTitle}>About this event</Text>
@@ -112,6 +138,7 @@ const styles = StyleSheet.create({
   primaryButton: { minHeight: 44, marginTop: 8, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: COLORS.primary }, primaryButtonText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
   header: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 10 }, headerButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, backgroundColor: COLORS.surface }, headerTitle: { flex: 1, color: COLORS.ink, fontSize: 15, fontWeight: '900', textAlign: 'center' },
   hero: { minHeight: 235, padding: 22, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderRadius: 27 }, heroGlow: { position: 'absolute', width: 210, height: 210, top: -125, right: -55, borderRadius: 105, backgroundColor: 'rgba(255,255,255,0.16)' }, heroIcon: { width: 70, height: 70, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: '#FFFFFF' }, category: { marginTop: 14, color: 'rgba(255,255,255,0.74)', fontSize: 8, fontWeight: '900', letterSpacing: 1 }, title: { maxWidth: 500, marginTop: 5, color: '#FFFFFF', fontSize: 23, fontWeight: '900', textAlign: 'center' }, heroMeta: { marginTop: 8, color: 'rgba(255,255,255,0.84)', fontSize: 10 },
+  completedBadge: { marginTop: 12, minHeight: 27, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.34)', borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.17)' }, completedBadgeText: { color: '#FFFFFF', fontSize: 7, fontWeight: '900', letterSpacing: 0.7 },
   detailCard: { marginTop: 12, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.line, borderRadius: 22, backgroundColor: COLORS.surface }, detailRow: { minHeight: 72, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 11 }, detailIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 13 }, detailCopy: { flex: 1 }, detailLabel: { color: COLORS.faint, fontSize: 7, fontWeight: '900', letterSpacing: 0.7 }, detailValue: { marginTop: 4, color: COLORS.ink, fontSize: 10, fontWeight: '800' }, separator: { height: 1, marginLeft: 65, backgroundColor: COLORS.line },
   sectionTitle: { marginTop: 24, marginBottom: 10, color: COLORS.ink, fontSize: 17, fontWeight: '900' }, descriptionCard: { minHeight: 92, padding: 16, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.surface }, description: { color: COLORS.muted, fontSize: 10, lineHeight: 17 }, descriptionEmpty: { color: COLORS.faint, fontSize: 10, fontStyle: 'italic' },
   groupButton: { minHeight: 72, marginTop: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.surface }, groupButtonCopy: { flex: 1 }, groupButtonTitle: { color: COLORS.ink, fontSize: 10, fontWeight: '900' }, groupButtonBody: { marginTop: 3, color: COLORS.muted, fontSize: 8 },

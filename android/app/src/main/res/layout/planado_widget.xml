@@ -10,7 +10,7 @@
   <TextView
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:text="PLANADO · TODAY &amp; TOMORROW"
+    android:text="PLANADO &#8226; TODAY &amp; TOMORROW"
     android:textColor="#B9BAFF"
     android:textSize="10sp"
     android:textStyle="bold" />
@@ -28,10 +28,11 @@
     android:textStyle="bold" />
 
   <TextView
+    android:id="@+id/widget_today_label"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:layout_marginTop="9dp"
-    android:text="TODAY"
+    android:text="TODAY &#8226; AUG 14"
     android:textColor="#65D6AC"
     android:textSize="9sp"
     android:textStyle="bold" />
@@ -55,9 +56,10 @@
     android:orientation="vertical">
 
     <TextView
+      android:id="@+id/widget_tomorrow_label"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
-      android:text="TOMORROW"
+      android:text="TOMORROW &#8226; AUG 15"
       android:textColor="#B9BAFF"
       android:textSize="9sp"
       android:textStyle="bold" />

@@ -2,7 +2,6 @@ import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +14,7 @@ import {
   View,
 } from 'react-native';
 
+import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
 import { useAuth } from '../../hooks/useAuth';
 import { getMyProfile, updateMyProfile } from '../../services/authService';
 

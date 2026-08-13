@@ -3,7 +3,6 @@ import { type Href, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -18,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
 import { useAuth } from '../../hooks/useAuth';
 import { getMyProfile, updateMyProfile } from '../../services/authService';
 import { supabase } from '../../services/supabase';

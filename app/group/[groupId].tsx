@@ -4,7 +4,6 @@ import { type Href, Redirect, useFocusEffect, useLocalSearchParams, useRouter } 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   Platform,
@@ -18,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
 import { useAuth } from '../../hooks/useAuth';
 import {
   createGroupInvite,
@@ -167,7 +167,7 @@ export default function GroupDetailScreen() {
   }
 
   function openGroupMenu() {
-    const options: Array<{ text: string; style?: 'default' | 'cancel' | 'destructive'; onPress?: () => void }> = [];
+    const options: { text: string; style?: 'default' | 'cancel' | 'destructive'; onPress?: () => void }[] = [];
     if (canManageInvites) options.push({ text: 'Invite members', onPress: () => setInviteOpen(true) });
     options.push({ text: 'View calendar', onPress: () => router.push('/(tabs)/calendar' as Href) });
     if (myRole === 'owner') options.push({ text: 'Delete group', style: 'destructive', onPress: confirmDelete });
@@ -183,11 +183,11 @@ export default function GroupDetailScreen() {
   }
 
   function manageMember(member: GroupMember) {
-    const options: Array<{
+    const options: {
       text: string;
       style?: 'default' | 'cancel' | 'destructive';
       onPress?: () => void;
-    }> = [];
+    }[] = [];
 
     if (myRole === 'owner') {
       options.push({

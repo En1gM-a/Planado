@@ -1,0 +1,74 @@
+name: Publish Planado preview update
+
+on:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: planado-preview-update
+  cancel-in-progress: true
+
+jobs:
+  update:
+    name: Verify and publish EAS Update
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check update compatibility
+        id: compatibility
+        shell: bash
+        run: |
+          base="${{ github.event.before }}"
+          if [[ "$base" =~ ^0+$ ]]; then
+            base="${{ github.sha }}^"
+          fi
+
+          changed_files="$(git diff --name-only "$base" "${{ github.sha }}")"
+          echo "$changed_files"
+
+          if echo "$changed_files" | grep -Eq '^(android/|ios/|app\.json$|app\.config\.|eas\.json$|package\.json$|package-lock\.json$)'; then
+            echo "compatible=false" >> "$GITHUB_OUTPUT"
+            echo "Native or runtime configuration changed. Create and install a new preview APK instead of publishing an OTA update." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "compatible=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for EXPO_TOKEN
+        if: steps.compatibility.outputs.compatible == 'true'
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "Add an EXPO_TOKEN repository secret before automatic updates can publish."
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup EAS
+        if: steps.compatibility.outputs.compatible == 'true'
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify app
+        run: |
+          npm run lint
+          npx tsc --noEmit
+
+      - name: Publish preview update
+        if: steps.compatibility.outputs.compatible == 'true'
+        run: eas update --channel preview --environment preview --non-interactive --message "GitHub ${{ github.sha }}"

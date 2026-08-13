@@ -3,7 +3,6 @@ import { type Href, Redirect, useLocalSearchParams, useRouter } from 'expo-route
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -14,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 
+import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
 import { useAuth } from '../../hooks/useAuth';
 import {
   getWildcatScheduleStats,

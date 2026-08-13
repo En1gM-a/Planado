@@ -3,7 +3,6 @@ import { type Href, Redirect, useLocalSearchParams, useRouter } from 'expo-route
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,6 +14,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
+import { PlanadoDateTimePicker } from '../../components/PlanadoDateTimePicker';
 import { useAuth } from '../../hooks/useAuth';
 import {
   createEvent,
@@ -22,6 +23,9 @@ import {
   type CalendarGroup,
   type EventCategory,
 } from '../../services/eventService';
+
+type RetentionChoice = 'permanent' | 'temporary';
+type OpenPicker = 'date' | 'start' | 'end' | null;
 
 const COLORS = {
   background: '#F6F6FB',
@@ -42,7 +46,7 @@ const COLORS = {
 
 const EVENT_COLORS = ['#5B5CE2', '#4B82D0', '#24966B', '#DF823C', '#D85B87', '#8A65C7'];
 
-const CATEGORIES: Array<{ value: EventCategory; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+const CATEGORIES: { value: EventCategory; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { value: 'hangout', label: 'Hangout', icon: 'people-outline' },
   { value: 'school', label: 'School', icon: 'school-outline' },
   { value: 'study', label: 'Study', icon: 'book-outline' },
@@ -65,6 +69,26 @@ function dateInputValue(date: Date) {
 
 function timeInputValue(date: Date) {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function friendlyDate(value: string) {
+  const date = parseLocalDateTime(value, '12:00');
+  if (!date) return 'Choose a date';
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+}
+
+function friendlyTime(date: string, value: string) {
+  const parsed = parseLocalDateTime(date, value);
+  if (!parsed) return 'Choose time';
+  return new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(parsed);
 }
 
 function initialTimes() {
@@ -105,7 +129,7 @@ export default function CreateEventScreen() {
   const requestedDate = Array.isArray(params.date) ? params.date[0] : params.date;
   const requestedGroupId = Array.isArray(params.groupId) ? params.groupId[0] : params.groupId;
   const { user, loading: authLoading } = useAuth();
-  const defaults = useMemo(initialTimes, []);
+  const defaults = useMemo(() => initialTimes(), []);
   const [groups, setGroups] = useState<CalendarGroup[]>([]);
   const [groupId, setGroupId] = useState(requestedGroupId ?? '');
   const [title, setTitle] = useState('');
@@ -117,6 +141,8 @@ export default function CreateEventScreen() {
   const [endTime, setEndTime] = useState(timeInputValue(defaults.end));
   const [allDay, setAllDay] = useState(false);
   const [visibility, setVisibility] = useState<'group' | 'private'>('group');
+  const [retention, setRetention] = useState<RetentionChoice>('permanent');
+  const [openPicker, setOpenPicker] = useState<OpenPicker>(null);
   const [color, setColor] = useState(EVENT_COLORS[0]);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -178,6 +204,7 @@ export default function CreateEventScreen() {
         isAllDay: allDay,
         color,
         visibility,
+        retentionPolicy: retention,
       });
       if (Platform.OS === 'web') {
         Alert.alert('Event created', `${title.trim()} is now on the calendar.`);
@@ -192,6 +219,17 @@ export default function CreateEventScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function currentPickerValue() {
+    const selectedTime = openPicker === 'end' ? endTime : startTime;
+    return parseLocalDateTime(date, selectedTime) ?? new Date(defaults.start);
+  }
+
+  function confirmPicker(value: Date) {
+    if (openPicker === 'date') setDate(dateInputValue(value));
+    if (openPicker === 'start') setStartTime(timeInputValue(value));
+    if (openPicker === 'end') setEndTime(timeInputValue(value));
   }
 
   if (authLoading || loadingGroups) {
@@ -287,10 +325,14 @@ export default function CreateEventScreen() {
                 <SectionTitle title="When" subtitle="Use your local date and time" />
                 <View style={styles.formCard}>
                   <FieldLabel label="DATE" />
-                  <View style={styles.inputShell}>
+                  <Pressable onPress={() => setOpenPicker('date')} style={({ pressed }) => [styles.inputShell, pressed && styles.inputShellPressed]}>
                     <Ionicons color={COLORS.primary} name="calendar-outline" size={18} />
-                    <TextInput autoCapitalize="none" keyboardType={Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'} maxLength={10} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor="#AEAEB8" style={styles.input} value={date} />
-                  </View>
+                    <View style={styles.pickerFieldCopy}>
+                      <Text style={styles.pickerFieldValue}>{friendlyDate(date)}</Text>
+                      <Text style={styles.pickerFieldHint}>Tap to open calendar</Text>
+                    </View>
+                    <Ionicons color={COLORS.faint} name="chevron-down" size={17} />
+                  </Pressable>
                   <Pressable onPress={() => setAllDay((value) => !value)} style={styles.switchRow}>
                     <View style={styles.switchCopy}>
                       <Text style={styles.switchTitle}>All-day event</Text>
@@ -304,17 +346,19 @@ export default function CreateEventScreen() {
                     <View style={styles.timeRow}>
                       <View style={styles.timeField}>
                         <FieldLabel label="START" />
-                        <View style={styles.inputShell}>
+                        <Pressable onPress={() => setOpenPicker('start')} style={({ pressed }) => [styles.inputShell, pressed && styles.inputShellPressed]}>
                           <Ionicons color={COLORS.primary} name="time-outline" size={18} />
-                          <TextInput autoCapitalize="none" maxLength={5} onChangeText={setStartTime} placeholder="09:00" placeholderTextColor="#AEAEB8" style={styles.input} value={startTime} />
-                        </View>
+                          <Text style={styles.pickerFieldValue}>{friendlyTime(date, startTime)}</Text>
+                          <Ionicons color={COLORS.faint} name="chevron-down" size={16} />
+                        </Pressable>
                       </View>
                       <View style={styles.timeField}>
                         <FieldLabel label="END" />
-                        <View style={styles.inputShell}>
+                        <Pressable onPress={() => setOpenPicker('end')} style={({ pressed }) => [styles.inputShell, pressed && styles.inputShellPressed]}>
                           <Ionicons color={COLORS.primary} name="time-outline" size={18} />
-                          <TextInput autoCapitalize="none" maxLength={5} onChangeText={setEndTime} placeholder="10:00" placeholderTextColor="#AEAEB8" style={styles.input} value={endTime} />
-                        </View>
+                          <Text style={styles.pickerFieldValue}>{friendlyTime(date, endTime)}</Text>
+                          <Ionicons color={COLORS.faint} name="chevron-down" size={16} />
+                        </Pressable>
                       </View>
                     </View>
                   ) : null}
@@ -357,6 +401,46 @@ export default function CreateEventScreen() {
                   </View>
                 </View>
 
+                <SectionTitle title="After the event" subtitle="Choose whether Planado keeps it in your history" />
+                <View style={styles.retentionRow}>
+                  {([
+                    {
+                      value: 'permanent' as const,
+                      icon: 'archive-outline' as const,
+                      title: 'Keep in history',
+                      body: 'Stays on your calendar until it is manually deleted.',
+                    },
+                    {
+                      value: 'temporary' as const,
+                      icon: 'timer-outline' as const,
+                      title: 'Temporary',
+                      body: 'Automatically deleted 7 days after it ends.',
+                    },
+                  ]).map((option) => {
+                    const active = retention === option.value;
+                    return (
+                      <Pressable
+                        key={option.value}
+                        onPress={() => setRetention(option.value)}
+                        style={[styles.retentionCard, active && styles.retentionCardActive]}
+                      >
+                        <View style={[styles.retentionIcon, active && styles.retentionIconActive]}>
+                          <Ionicons color={active ? COLORS.primary : COLORS.muted} name={option.icon} size={20} />
+                        </View>
+                        <View style={styles.retentionCopy}>
+                          <Text style={[styles.retentionTitle, active && styles.retentionTitleActive]}>{option.title}</Text>
+                          <Text style={styles.retentionBody}>{option.body}</Text>
+                        </View>
+                        <Ionicons
+                          color={active ? COLORS.primary : COLORS.faint}
+                          name={active ? 'checkmark-circle' : 'ellipse-outline'}
+                          size={20}
+                        />
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
                 <Pressable disabled={saving} onPress={() => void submit()} style={({ pressed }) => [styles.submitButton, saving && styles.submitButtonDisabled, pressed && styles.pressed]}>
                   {saving ? <ActivityIndicator color="#FFFFFF" /> : <Ionicons color="#FFFFFF" name="checkmark-circle-outline" size={21} />}
                   <Text style={styles.submitButtonText}>{saving ? 'Creating event...' : 'Create event'}</Text>
@@ -365,6 +449,14 @@ export default function CreateEventScreen() {
             )}
           </View>
         </ScrollView>
+        <PlanadoDateTimePicker
+          mode={openPicker === 'date' ? 'date' : 'time'}
+          onClose={() => setOpenPicker(null)}
+          onConfirm={confirmPicker}
+          title={openPicker === 'date' ? 'Event date' : openPicker === 'end' ? 'End time' : 'Start time'}
+          value={currentPickerValue()}
+          visible={openPicker !== null}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -417,7 +509,11 @@ const styles = StyleSheet.create({
   fieldLabel: { color: '#6F6F7A', fontSize: 8, fontWeight: '900', letterSpacing: 0.75 },
   fieldCount: { color: COLORS.faint, fontSize: 7 },
   inputShell: { minHeight: 50, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: '#DEDEE8', borderRadius: 15, backgroundColor: '#FAFAFD' },
+  inputShellPressed: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
   input: { flex: 1, paddingVertical: 11, color: COLORS.ink, fontSize: 11 },
+  pickerFieldCopy: { flex: 1, paddingVertical: 9 },
+  pickerFieldValue: { flex: 1, color: COLORS.ink, fontSize: 10, fontWeight: '800' },
+  pickerFieldHint: { marginTop: 2, color: COLORS.faint, fontSize: 7 },
   textAreaShell: { minHeight: 100, alignItems: 'flex-start' },
   textArea: { minHeight: 95, lineHeight: 17 },
   groupRow: { gap: 8 },
@@ -450,6 +546,15 @@ const styles = StyleSheet.create({
   colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   colorOption: { width: 39, height: 39, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: COLORS.surface, borderRadius: 14 },
   colorOptionActive: { borderColor: '#D5D5DF', transform: [{ scale: 1.08 }] },
+  retentionRow: { gap: 9 },
+  retentionCard: { minHeight: 82, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, backgroundColor: COLORS.surface },
+  retentionCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
+  retentionIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#F2F2F7' },
+  retentionIconActive: { backgroundColor: '#FFFFFF' },
+  retentionCopy: { flex: 1 },
+  retentionTitle: { color: COLORS.ink, fontSize: 10, fontWeight: '900' },
+  retentionTitleActive: { color: COLORS.primary },
+  retentionBody: { marginTop: 4, color: COLORS.muted, fontSize: 8, lineHeight: 12 },
   submitButton: { minHeight: 55, marginTop: 25, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 17, backgroundColor: COLORS.primary },
   submitButtonDisabled: { opacity: 0.65 },
   submitButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },

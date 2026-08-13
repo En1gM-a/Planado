@@ -7,11 +7,15 @@
     "scheme": "planado",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "com.planado.app"
+      "bundleIdentifier": "com.planado.app",
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "android": {
       "package": "com.planado.app",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "runtimeVersion": "1.0.0"
     },
     "web": {
       "output": "static"
@@ -29,6 +33,9 @@
       "eas": {
         "projectId": "e4dd5fc9-c6a2-484d-bd4e-0ff40891c54e"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e4dd5fc9-c6a2-484d-bd4e-0ff40891c54e"
     }
   }
 }

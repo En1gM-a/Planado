@@ -1,9 +1,23 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
+import { ActivityIndicator, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { useAuth } from '../../hooks/useAuth';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const { loading, user } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F6F6FB' }}>
+        <ActivityIndicator color="#5B5CE2" />
+      </View>
+    );
+  }
+
+  if (!user) return <Redirect href="/(auth)/login" />;
 
   return (
     <Tabs

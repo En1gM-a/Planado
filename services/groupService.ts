@@ -270,6 +270,7 @@ export async function getGroupDetails(groupId: string): Promise<GroupDetails> {
 export async function getGroupWidgetEvents(groupId: string): Promise<{
   today: GroupWidgetEvent[];
   tomorrow: GroupWidgetEvent[];
+  days: Record<string, GroupWidgetEvent[]>;
   groupType: GroupType;
 }> {
   const user = await getCurrentUser();
@@ -279,8 +280,10 @@ export async function getGroupWidgetEvents(groupId: string): Promise<{
   todayStart.setHours(0, 0, 0, 0);
   const tomorrowStart = new Date(todayStart);
   tomorrowStart.setDate(todayStart.getDate() + 1);
-  const rangeEnd = new Date(tomorrowStart);
-  rangeEnd.setDate(tomorrowStart.getDate() + 1);
+  const tomorrowEnd = new Date(tomorrowStart);
+  tomorrowEnd.setDate(tomorrowStart.getDate() + 1);
+  const rangeEnd = new Date(todayStart);
+  rangeEnd.setDate(todayStart.getDate() + 14);
 
   const [groupResult, eventResult] = await Promise.all([
     supabase
@@ -303,10 +306,24 @@ export async function getGroupWidgetEvents(groupId: string): Promise<{
   const events = (eventResult.data ?? []) as GroupWidgetEvent[];
   const touchesDay = (event: GroupWidgetEvent, start: Date, end: Date) =>
     new Date(event.start_time) < end && new Date(event.end_time) >= start;
+  const dayKey = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const days = Object.fromEntries(Array.from({ length: 14 }, (_, offset) => {
+    const start = new Date(todayStart);
+    start.setDate(todayStart.getDate() + offset);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 1);
+    return [dayKey(start), events.filter((event) => touchesDay(event, start, end))];
+  }));
 
   return {
     today: events.filter((event) => touchesDay(event, todayStart, tomorrowStart)),
-    tomorrow: events.filter((event) => touchesDay(event, tomorrowStart, rangeEnd)),
+    tomorrow: events.filter((event) => touchesDay(event, tomorrowStart, tomorrowEnd)),
+    days,
     groupType: groupResult.data.group_type as GroupType,
   };
 }

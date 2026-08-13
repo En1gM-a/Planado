@@ -22,19 +22,12 @@ class PlanadoWidgetModule(
     groupName: String,
     todayText: String,
     tomorrowText: String,
+    snapshotDate: String,
+    scheduleJson: String,
     promise: Promise
   ) {
     try {
-      reactContext
-        .getSharedPreferences(PlanadoWidgetProvider.PREFS_NAME, 0)
-        .edit()
-        .putString(PlanadoWidgetProvider.KEY_GROUP_ID, groupId)
-        .putString(PlanadoWidgetProvider.KEY_GROUP_NAME, groupName)
-        .putString(PlanadoWidgetProvider.KEY_TODAY, todayText)
-        .putString(PlanadoWidgetProvider.KEY_TOMORROW, tomorrowText)
-        .apply()
-
-      PlanadoWidgetProvider.updateAllWidgets(reactContext)
+      saveWidgetData(groupId, groupName, todayText, tomorrowText, snapshotDate, scheduleJson)
 
       var pinRequested = false
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -58,5 +51,45 @@ class PlanadoWidgetModule(
     } catch (error: Exception) {
       promise.reject("PLANADO_WIDGET_ERROR", error.message, error)
     }
+  }
+
+  @ReactMethod
+  fun saveGroupWidgetData(
+    groupId: String,
+    groupName: String,
+    todayText: String,
+    tomorrowText: String,
+    snapshotDate: String,
+    scheduleJson: String,
+    promise: Promise
+  ) {
+    try {
+      saveWidgetData(groupId, groupName, todayText, tomorrowText, snapshotDate, scheduleJson)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("PLANADO_WIDGET_ERROR", error.message, error)
+    }
+  }
+
+  private fun saveWidgetData(
+    groupId: String,
+    groupName: String,
+    todayText: String,
+    tomorrowText: String,
+    snapshotDate: String,
+    scheduleJson: String
+  ) {
+    reactContext
+      .getSharedPreferences(PlanadoWidgetProvider.PREFS_NAME, 0)
+      .edit()
+      .putString(PlanadoWidgetProvider.KEY_GROUP_ID, groupId)
+      .putString(PlanadoWidgetProvider.KEY_GROUP_NAME, groupName)
+      .putString(PlanadoWidgetProvider.KEY_TODAY, todayText)
+      .putString(PlanadoWidgetProvider.KEY_TOMORROW, tomorrowText)
+      .putString(PlanadoWidgetProvider.KEY_SNAPSHOT_DATE, snapshotDate)
+      .putString(PlanadoWidgetProvider.KEY_SCHEDULE_JSON, scheduleJson)
+      .apply()
+
+    PlanadoWidgetProvider.updateAllWidgets(reactContext)
   }
 }

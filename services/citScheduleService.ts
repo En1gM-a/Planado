@@ -1,5 +1,6 @@
 import { getCurrentUser } from './authService';
 import { supabase } from './supabase';
+import { refreshGroupWidgetIfSelected } from './widgetService';
 
 export const WILDCAT_ONE_URL = 'https://yeahsleepwellgoodluckveralove.vercel.app/';
 export const WILDCAT_IMPORT_WEEKS = 16;
@@ -227,6 +228,7 @@ function eventRows(input: ImportScheduleInput, userId: string) {
             color: input.color,
             visibility: 'private',
             status: 'active',
+            retention_policy: 'class_schedule',
             external_source: 'wildcat_one',
             external_id: `${meeting.courseOfferingScheduleID}:${dayKey}:${localDateKey(date)}`.slice(0, 240),
           });
@@ -254,6 +256,10 @@ export async function importWildcatSchedule(input: ImportScheduleInput) {
       });
     if (error) throw error;
   }
+
+  void refreshGroupWidgetIfSelected(input.groupId).catch((widgetError) => {
+    console.warn('Schedule imported, but the widget could not refresh:', widgetError);
+  });
 
   return { imported: rows.length, weeks: input.weeks ?? WILDCAT_IMPORT_WEEKS };
 }
