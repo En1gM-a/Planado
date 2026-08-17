@@ -18,9 +18,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
+import { PlanadoLoader } from '../../components/PlanadoLoader';
 import { useAuth } from '../../hooks/useAuth';
+import { usePlanadoTheme } from '../../hooks/usePlanadoTheme';
 import { getMyProfile, updateMyProfile } from '../../services/authService';
 import { supabase } from '../../services/supabase';
+import { COLORS } from '../../theme/colors';
 
 type Profile = {
   id: string;
@@ -39,23 +42,14 @@ type FormState = {
   timezone: string;
 };
 
-const COLORS = {
-  background: '#F6F6FB',
-  surface: '#FFFFFF',
-  ink: '#202027',
-  muted: '#777782',
-  faint: '#A1A1AC',
-  line: '#E7E7EF',
-  primary: '#5B5CE2',
-  primarySoft: '#EEEEFF',
-  navy: '#262650',
-  green: '#23966B',
-  greenSoft: '#E9F8F1',
-  danger: '#C94E59',
-};
-
 const deviceTimezone =
   Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+const THEME_OPTIONS = [
+  { value: 'system', label: 'System', icon: 'phone-portrait-outline' },
+  { value: 'light', label: 'Light', icon: 'sunny-outline' },
+  { value: 'dark', label: 'Dark', icon: 'moon-outline' },
+] as const;
 
 function normalizeUsername(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 30);
@@ -73,6 +67,7 @@ function profileToForm(profile: Profile): FormState {
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const { mode: themeMode, setMode: setThemeMode } = usePlanadoTheme();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [form, setForm] = useState<FormState>({
     displayName: '',
@@ -289,13 +284,7 @@ export default function ProfileScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.loadingPage}>
-          <View style={styles.loadingLogo}>
-            <Ionicons color="#FFFFFF" name="person" size={25} />
-          </View>
-          <ActivityIndicator color={COLORS.primary} />
-          <Text style={styles.loadingText}>Loading your profile...</Text>
-        </View>
+        <PlanadoLoader fullScreen message="Loading your profile..." />
       </SafeAreaView>
     );
   }
@@ -413,7 +402,7 @@ export default function ProfileScreen() {
                       setForm((current) => ({ ...current, displayName: displayNameValue }))
                     }
                     placeholder="Your display name"
-                    placeholderTextColor="#B0B0BA"
+                    placeholderTextColor={COLORS.faint}
                     style={styles.input}
                     value={form.displayName}
                   />
@@ -434,7 +423,7 @@ export default function ProfileScreen() {
                       }))
                     }
                     placeholder="username"
-                    placeholderTextColor="#B0B0BA"
+                    placeholderTextColor={COLORS.faint}
                     style={styles.input}
                     value={form.username}
                   />
@@ -453,7 +442,7 @@ export default function ProfileScreen() {
                       setForm((current) => ({ ...current, bio: bioValue }))
                     }
                     placeholder="Tell your groups a little about you..."
-                    placeholderTextColor="#B0B0BA"
+                    placeholderTextColor={COLORS.faint}
                     style={[styles.input, styles.bioInput]}
                     textAlignVertical="top"
                     value={form.bio}
@@ -479,12 +468,12 @@ export default function ProfileScreen() {
                       setForm((current) => ({ ...current, timezone: timezoneValue }))
                     }
                     placeholder="Asia/Manila"
-                    placeholderTextColor="#B0B0BA"
+                    placeholderTextColor={COLORS.faint}
                     style={styles.input}
                     value={form.timezone}
                   />
                 </View>
-                <Text style={styles.inputHint}>Used for events, reminders, and the 12 AM / 12 PM AI brief.</Text>
+                <Text style={styles.inputHint}>Used to display event times and reminders correctly.</Text>
 
                 <View style={styles.formActions}>
                   <Pressable
@@ -544,8 +533,8 @@ export default function ProfileScreen() {
                   </View>
                   <View style={styles.settingSeparator} />
                   <View style={styles.settingRow}>
-                    <View style={[styles.settingIcon, { backgroundColor: '#FFF3E8' }]}>
-                      <Ionicons color="#D78138" name="globe-outline" size={19} />
+                    <View style={[styles.settingIcon, { backgroundColor: COLORS.orangeSoft }]}>
+                      <Ionicons color={COLORS.orange} name="globe-outline" size={19} />
                     </View>
                     <View style={styles.settingCopy}>
                       <Text style={styles.settingLabel}>Timezone</Text>
@@ -559,7 +548,46 @@ export default function ProfileScreen() {
                     </View>
                     <View style={styles.settingCopy}>
                       <Text style={styles.settingLabel}>AI group brief</Text>
-                      <Text style={styles.settingValue}>Twice daily · 12 AM and 12 PM</Text>
+                      <Text style={styles.settingValue}>Future update · Not active yet</Text>
+                    </View>
+                  </View>
+                  <View style={styles.settingSeparator} />
+                  <View style={styles.themeSetting}>
+                    <View style={styles.themeSettingHeader}>
+                      <View style={[styles.settingIcon, { backgroundColor: COLORS.primarySoft }]}>
+                        <Ionicons color={COLORS.primary} name="contrast-outline" size={19} />
+                      </View>
+                      <View style={styles.settingCopy}>
+                        <Text style={styles.settingLabel}>Appearance</Text>
+                        <Text style={styles.settingValue}>Choose how Planado looks</Text>
+                      </View>
+                    </View>
+                    <View style={styles.themeOptions}>
+                      {THEME_OPTIONS.map((option) => {
+                        const active = themeMode === option.value;
+                        return (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                            key={option.value}
+                            onPress={() => setThemeMode(option.value)}
+                            style={({ pressed }) => [
+                              styles.themeOption,
+                              active && styles.themeOptionActive,
+                              pressed && styles.pressed,
+                            ]}
+                          >
+                            <Ionicons
+                              color={active ? '#FFFFFF' : COLORS.muted}
+                              name={option.icon}
+                              size={15}
+                            />
+                            <Text style={[styles.themeOptionText, active && styles.themeOptionTextActive]}>
+                              {option.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
                     </View>
                   </View>
                 </View>
@@ -599,7 +627,7 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   eyebrow: { color: COLORS.primary, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
   pageTitle: { marginTop: 3, color: COLORS.ink, fontSize: 28, fontWeight: '800', letterSpacing: -1 },
-  editButton: { minHeight: 40, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: '#DCDCED', borderRadius: 14, backgroundColor: COLORS.surface },
+  editButton: { minHeight: 40, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, backgroundColor: COLORS.surface },
   editButtonText: { color: COLORS.primary, fontSize: 11, fontWeight: '800' },
   pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
   heroCard: { marginTop: 18, minHeight: 238, padding: 22, overflow: 'hidden', alignItems: 'center', borderRadius: 28, backgroundColor: COLORS.navy },
@@ -620,20 +648,20 @@ const styles = StyleSheet.create({
   statNumber: { color: COLORS.ink, fontSize: 19, fontWeight: '900' },
   statLabel: { marginTop: 5, color: COLORS.faint, fontSize: 7, fontWeight: '900', letterSpacing: 0.65 },
   statDivider: { width: 1, height: 34, backgroundColor: COLORS.line },
-  messageError: { marginTop: 13, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, backgroundColor: '#FFF0F1' },
-  messageErrorText: { flex: 1, color: '#A6424B', fontSize: 10, lineHeight: 15 },
+  messageError: { marginTop: 13, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, backgroundColor: COLORS.redSoft },
+  messageErrorText: { flex: 1, color: COLORS.red, fontSize: 10, lineHeight: 15 },
   messageSuccess: { marginTop: 13, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, backgroundColor: COLORS.greenSoft },
-  messageSuccessText: { flex: 1, color: '#237653', fontSize: 10, lineHeight: 15 },
+  messageSuccessText: { flex: 1, color: COLORS.green, fontSize: 10, lineHeight: 15 },
   formCard: { marginTop: 18, padding: 18, borderWidth: 1, borderColor: COLORS.line, borderRadius: 24, backgroundColor: COLORS.surface },
   sectionHeadingRow: { marginBottom: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   sectionHeader: { marginTop: 25, marginBottom: 11 },
   sectionTitle: { color: COLORS.ink, fontSize: 17, fontWeight: '800', letterSpacing: -0.25 },
   sectionSubtitle: { marginTop: 3, color: COLORS.faint, fontSize: 9 },
-  inputLabel: { marginTop: 16, marginBottom: 7, color: '#6E6E79', fontSize: 8, fontWeight: '900', letterSpacing: 0.85 },
+  inputLabel: { marginTop: 16, marginBottom: 7, color: COLORS.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.85 },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   bioCount: { marginBottom: 7, color: COLORS.faint, fontSize: 8 },
   useDevice: { marginBottom: 7, color: COLORS.primary, fontSize: 8, fontWeight: '800' },
-  inputShell: { minHeight: 51, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#DEDEE8', borderRadius: 15, backgroundColor: '#FAFAFD' },
+  inputShell: { minHeight: 51, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, backgroundColor: COLORS.input },
   input: { flex: 1, paddingVertical: 12, color: COLORS.ink, fontSize: 12 },
   characterCount: { color: COLORS.faint, fontSize: 8 },
   atSymbol: { color: COLORS.primary, fontSize: 16, fontWeight: '800' },
@@ -657,8 +685,15 @@ const styles = StyleSheet.create({
   settingLabel: { color: COLORS.ink, fontSize: 11, fontWeight: '800' },
   settingValue: { marginTop: 4, color: COLORS.muted, fontSize: 9 },
   settingSeparator: { height: 1, marginLeft: 66, backgroundColor: COLORS.line },
+  themeSetting: { paddingHorizontal: 15, paddingVertical: 14 },
+  themeSettingHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  themeOptions: { marginTop: 12, padding: 4, flexDirection: 'row', gap: 4, borderRadius: 14, backgroundColor: COLORS.elevated },
+  themeOption: { flex: 1, minHeight: 39, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 11 },
+  themeOptionActive: { backgroundColor: COLORS.primary },
+  themeOptionText: { color: COLORS.muted, fontSize: 9, fontWeight: '800' },
+  themeOptionTextActive: { color: '#FFFFFF' },
   googleNote: { marginTop: 12, paddingHorizontal: 5, color: COLORS.faint, fontSize: 8, lineHeight: 13, textAlign: 'center' },
-  signOutButton: { minHeight: 50, marginTop: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: '#F0D8DB', borderRadius: 16, backgroundColor: '#FFF9F9' },
+  signOutButton: { minHeight: 50, marginTop: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: COLORS.redSoft, borderRadius: 16, backgroundColor: COLORS.redSoft },
   signOutText: { color: COLORS.danger, fontSize: 11, fontWeight: '800' },
   memberSince: { marginTop: 13, color: COLORS.faint, fontSize: 8, textAlign: 'center' },
 });

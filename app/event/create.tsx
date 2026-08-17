@@ -16,7 +16,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
 import { PlanadoDateTimePicker } from '../../components/PlanadoDateTimePicker';
+import { PlanadoLoader } from '../../components/PlanadoLoader';
 import { useAuth } from '../../hooks/useAuth';
+import { COLORS } from '../../theme/colors';
 import {
   createEvent,
   getMyCalendarGroups,
@@ -26,23 +28,6 @@ import {
 
 type RetentionChoice = 'permanent' | 'temporary';
 type OpenPicker = 'date' | 'start' | 'end' | null;
-
-const COLORS = {
-  background: '#F6F6FB',
-  surface: '#FFFFFF',
-  ink: '#202027',
-  muted: '#777782',
-  faint: '#A1A1AC',
-  line: '#E7E7EF',
-  primary: '#5B5CE2',
-  primarySoft: '#EEEEFF',
-  green: '#24966B',
-  greenSoft: '#E9F8F1',
-  orange: '#DF823C',
-  orangeSoft: '#FFF2E7',
-  red: '#C9525C',
-  redSoft: '#FFF0F1',
-};
 
 const EVENT_COLORS = ['#5B5CE2', '#4B82D0', '#24966B', '#DF823C', '#D85B87', '#8A65C7'];
 
@@ -235,10 +220,7 @@ export default function CreateEventScreen() {
   if (authLoading || loadingGroups) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.loadingPage}>
-          <ActivityIndicator color={COLORS.primary} />
-          <Text style={styles.loadingText}>Preparing your event...</Text>
-        </View>
+        <PlanadoLoader fullScreen message="Preparing your event..." />
       </SafeAreaView>
     );
   }
@@ -295,16 +277,16 @@ export default function CreateEventScreen() {
                   <FieldLabel label="TITLE" count={`${title.length}/120`} />
                   <View style={styles.inputShell}>
                     <Ionicons color={COLORS.faint} name="create-outline" size={18} />
-                    <TextInput maxLength={120} onChangeText={setTitle} placeholder="Study session" placeholderTextColor="#AEAEB8" style={styles.input} value={title} />
+                    <TextInput maxLength={120} onChangeText={setTitle} placeholder="Study session" placeholderTextColor={COLORS.faint} style={styles.input} value={title} />
                   </View>
                   <FieldLabel label="LOCATION" count={`${location.length}/300`} />
                   <View style={styles.inputShell}>
                     <Ionicons color={COLORS.faint} name="location-outline" size={18} />
-                    <TextInput maxLength={300} onChangeText={setLocation} placeholder="Library, room, or link" placeholderTextColor="#AEAEB8" style={styles.input} value={location} />
+                    <TextInput maxLength={300} onChangeText={setLocation} placeholder="Library, room, or link" placeholderTextColor={COLORS.faint} style={styles.input} value={location} />
                   </View>
                   <FieldLabel label="DESCRIPTION" count={`${description.length}/5000`} />
                   <View style={[styles.inputShell, styles.textAreaShell]}>
-                    <TextInput maxLength={5000} multiline onChangeText={setDescription} placeholder="Add notes, what to bring, or an agenda..." placeholderTextColor="#AEAEB8" style={[styles.input, styles.textArea]} textAlignVertical="top" value={description} />
+                    <TextInput maxLength={5000} multiline onChangeText={setDescription} placeholder="Add notes, what to bring, or an agenda..." placeholderTextColor={COLORS.faint} style={[styles.input, styles.textArea]} textAlignVertical="top" value={description} />
                   </View>
                 </View>
 
@@ -500,15 +482,15 @@ const styles = StyleSheet.create({
   heroTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
   heroBody: { marginTop: 5, color: '#C7C7E2', fontSize: 9 },
   errorBanner: { marginTop: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, backgroundColor: COLORS.redSoft },
-  errorText: { flex: 1, color: '#9F4148', fontSize: 9, lineHeight: 14 },
+  errorText: { flex: 1, color: COLORS.red, fontSize: 9, lineHeight: 14 },
   sectionHeader: { marginTop: 24, marginBottom: 10 },
   sectionTitle: { color: COLORS.ink, fontSize: 17, fontWeight: '900' },
   sectionSubtitle: { marginTop: 3, color: COLORS.faint, fontSize: 9 },
   formCard: { padding: 15, borderWidth: 1, borderColor: COLORS.line, borderRadius: 22, backgroundColor: COLORS.surface },
   labelRow: { marginTop: 14, marginBottom: 7, flexDirection: 'row', justifyContent: 'space-between' },
-  fieldLabel: { color: '#6F6F7A', fontSize: 8, fontWeight: '900', letterSpacing: 0.75 },
+  fieldLabel: { color: COLORS.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.75 },
   fieldCount: { color: COLORS.faint, fontSize: 7 },
-  inputShell: { minHeight: 50, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: '#DEDEE8', borderRadius: 15, backgroundColor: '#FAFAFD' },
+  inputShell: { minHeight: 50, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, backgroundColor: COLORS.input },
   inputShellPressed: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
   input: { flex: 1, paddingVertical: 11, color: COLORS.ink, fontSize: 11 },
   pickerFieldCopy: { flex: 1, paddingVertical: 9 },
@@ -526,7 +508,7 @@ const styles = StyleSheet.create({
   switchCopy: { flex: 1 },
   switchTitle: { color: COLORS.ink, fontSize: 11, fontWeight: '900' },
   switchBody: { marginTop: 3, color: COLORS.muted, fontSize: 8 },
-  switchTrack: { width: 44, height: 26, padding: 3, justifyContent: 'center', borderRadius: 13, backgroundColor: '#DCDCE4' },
+  switchTrack: { width: 44, height: 26, padding: 3, justifyContent: 'center', borderRadius: 13, backgroundColor: COLORS.line },
   switchTrackActive: { backgroundColor: COLORS.primary },
   switchThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFFFFF' },
   switchThumbActive: { alignSelf: 'flex-end' },
@@ -538,19 +520,19 @@ const styles = StyleSheet.create({
   categoryText: { color: COLORS.muted, fontSize: 9, fontWeight: '800' },
   categoryTextActive: { color: COLORS.primary },
   visibilityRow: { flexDirection: 'row', gap: 9 },
-  visibilityCard: { flex: 1, minHeight: 103, padding: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 17, backgroundColor: '#FAFAFD' },
+  visibilityCard: { flex: 1, minHeight: 103, padding: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 17, backgroundColor: COLORS.input },
   visibilityCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
   visibilityTitle: { marginTop: 9, color: COLORS.ink, fontSize: 10, fontWeight: '900' },
   visibilityTitleActive: { color: COLORS.primary },
   visibilityBody: { marginTop: 3, color: COLORS.muted, fontSize: 7, lineHeight: 11 },
   colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   colorOption: { width: 39, height: 39, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: COLORS.surface, borderRadius: 14 },
-  colorOptionActive: { borderColor: '#D5D5DF', transform: [{ scale: 1.08 }] },
+  colorOptionActive: { borderColor: COLORS.line, transform: [{ scale: 1.08 }] },
   retentionRow: { gap: 9 },
   retentionCard: { minHeight: 82, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, backgroundColor: COLORS.surface },
   retentionCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
-  retentionIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#F2F2F7' },
-  retentionIconActive: { backgroundColor: '#FFFFFF' },
+  retentionIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: COLORS.elevated },
+  retentionIconActive: { backgroundColor: COLORS.surface },
   retentionCopy: { flex: 1 },
   retentionTitle: { color: COLORS.ink, fontSize: 10, fontWeight: '900' },
   retentionTitleActive: { color: COLORS.primary },

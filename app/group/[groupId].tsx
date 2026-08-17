@@ -18,7 +18,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
+import { PlanadoLoader } from '../../components/PlanadoLoader';
 import { useAuth } from '../../hooks/useAuth';
+import { COLORS } from '../../theme/colors';
 import {
   createGroupInvite,
   deleteGroup,
@@ -34,24 +36,6 @@ import {
 } from '../../services/groupService';
 import { supabase } from '../../services/supabase';
 import { makeGroupWidget } from '../../services/widgetService';
-
-const COLORS = {
-  background: '#F6F6FB',
-  surface: '#FFFFFF',
-  ink: '#202027',
-  muted: '#777782',
-  faint: '#A1A1AC',
-  line: '#E7E7EF',
-  primary: '#5B5CE2',
-  primarySoft: '#EEEEFF',
-  navy: '#282852',
-  green: '#24966B',
-  greenSoft: '#E9F8F1',
-  orange: '#DE8139',
-  orangeSoft: '#FFF2E7',
-  red: '#C9515A',
-  redSoft: '#FFF0F1',
-};
 
 function roleLabel(role: GroupRole) {
   if (role === 'owner') return 'Creator';
@@ -77,7 +61,7 @@ function roleRank(role: GroupRole) {
 function roleAppearance(role: GroupRole) {
   if (role === 'owner') return { color: COLORS.primary, background: COLORS.primarySoft, icon: 'star' as const };
   if (role === 'admin') return { color: COLORS.orange, background: COLORS.orangeSoft, icon: 'shield-checkmark' as const };
-  return { color: COLORS.muted, background: '#F1F1F5', icon: 'person' as const };
+  return { color: COLORS.muted, background: COLORS.elevated, icon: 'person' as const };
 }
 
 export default function GroupDetailScreen() {
@@ -301,10 +285,7 @@ export default function GroupDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <View style={styles.loadingPage}>
-          <ActivityIndicator color={COLORS.primary} />
-          <Text style={styles.loadingText}>Opening group...</Text>
-        </View>
+        <PlanadoLoader fullScreen message="Opening group..." />
       </SafeAreaView>
     );
   }
@@ -711,7 +692,7 @@ const styles = StyleSheet.create({
   hero: { minHeight: 256, padding: 20, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderRadius: 27 },
   heroCircleLarge: { position: 'absolute', width: 210, height: 210, top: -120, right: -55, borderRadius: 105, backgroundColor: 'rgba(255,255,255,0.14)' },
   heroCircleSmall: { position: 'absolute', width: 130, height: 130, bottom: -80, left: 14, borderRadius: 65, backgroundColor: 'rgba(20,20,50,0.10)' },
-  groupAvatar: { width: 82, height: 82, padding: 3, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.75)', borderRadius: 27, backgroundColor: '#FFFFFF' },
+  groupAvatar: { width: 82, height: 82, padding: 3, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.75)', borderRadius: 27, backgroundColor: COLORS.surface },
   groupImage: { width: '100%', height: '100%', borderRadius: 22 },
   groupInitial: { fontSize: 30, fontWeight: '900' },
   heroName: { marginTop: 14, color: '#FFFFFF', fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
@@ -739,7 +720,7 @@ const styles = StyleSheet.create({
   widgetBody: { marginTop: 4, color: COLORS.muted, fontSize: 8, lineHeight: 12 },
   androidBadge: { paddingVertical: 3, paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 8, backgroundColor: COLORS.greenSoft },
   androidBadgeText: { color: COLORS.green, fontSize: 6, fontWeight: '900', letterSpacing: 0.4 },
-  citConnectionCard: { marginTop: 10, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderColor: '#DDDDF5', borderRadius: 20, backgroundColor: '#FAFAFF' },
+  citConnectionCard: { marginTop: 10, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.elevated },
   citConnectionIcon: { width: 47, height: 47, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: COLORS.primarySoft },
   citConnectionCopy: { flex: 1 },
   citConnectionEyebrow: { color: COLORS.primary, fontSize: 7, fontWeight: '900', letterSpacing: 0.8 },
@@ -760,7 +741,7 @@ const styles = StyleSheet.create({
   memberAvatar: { width: 45, height: 45, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
   memberAvatarImage: { width: '100%', height: '100%', borderRadius: 15 },
   memberInitial: { fontSize: 16, fontWeight: '900' },
-  memberColorDot: { position: 'absolute', right: -2, bottom: -2, width: 12, height: 12, borderWidth: 2, borderColor: '#FFFFFF', borderRadius: 6 },
+  memberColorDot: { position: 'absolute', right: -2, bottom: -2, width: 12, height: 12, borderWidth: 2, borderColor: COLORS.surface, borderRadius: 6 },
   memberCopy: { flex: 1 },
   memberNameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   memberName: { flexShrink: 1, color: COLORS.ink, fontSize: 11, fontWeight: '900' },
@@ -787,31 +768,31 @@ const styles = StyleSheet.create({
   permissionTitle: { color: COLORS.ink, fontSize: 10, fontWeight: '900' },
   permissionDescription: { marginTop: 3, color: COLORS.muted, fontSize: 8 },
   permissionSeparator: { height: 1, marginLeft: 64, backgroundColor: COLORS.line },
-  dangerButton: { minHeight: 50, marginTop: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: '#EFD7D9', borderRadius: 16, backgroundColor: '#FFF9F9' },
+  dangerButton: { minHeight: 50, marginTop: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: COLORS.redSoft, borderRadius: 16, backgroundColor: COLORS.redSoft },
   dangerButtonText: { color: COLORS.red, fontSize: 10, fontWeight: '900' },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(20,20,35,0.46)' },
   modalCard: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 9, paddingBottom: 25, borderTopLeftRadius: 29, borderTopRightRadius: 29, backgroundColor: COLORS.surface },
-  modalHandle: { width: 38, height: 4, alignSelf: 'center', marginBottom: 16, borderRadius: 2, backgroundColor: '#D9D9E2' },
+  modalHandle: { width: 38, height: 4, alignSelf: 'center', marginBottom: 16, borderRadius: 2, backgroundColor: COLORS.line },
   modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   inviteIcon: { width: 47, height: 47, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: COLORS.primarySoft },
   modalHeaderCopy: { flex: 1 },
   modalTitle: { color: COLORS.ink, fontSize: 18, fontWeight: '900' },
   modalSubtitle: { marginTop: 3, color: COLORS.muted, fontSize: 9 },
-  modalClose: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: '#F4F4F8' },
-  codeCard: { marginTop: 20, padding: 18, alignItems: 'center', borderWidth: 1, borderColor: '#DCDCED', borderRadius: 23, backgroundColor: '#FAFAFF' },
+  modalClose: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: COLORS.elevatedStrong },
+  codeCard: { marginTop: 20, padding: 18, alignItems: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 23, backgroundColor: COLORS.elevated },
   codeLabel: { color: COLORS.faint, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
   codeValue: { marginTop: 11, color: COLORS.navy, fontSize: 29, fontWeight: '900', letterSpacing: 5 },
   codeMetaRow: { marginTop: 13, flexDirection: 'row', gap: 15 },
   codeMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   codeMetaText: { color: COLORS.muted, fontSize: 8, fontWeight: '700' },
   codeActions: { width: '100%', marginTop: 18, flexDirection: 'row', gap: 8 },
-  copyButton: { flex: 1, minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: '#DADAEA', borderRadius: 14, backgroundColor: COLORS.surface },
+  copyButton: { flex: 1, minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, backgroundColor: COLORS.surface },
   copyButtonText: { color: COLORS.primary, fontSize: 9, fontWeight: '900' },
   shareButton: { flex: 1.3, minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 14, backgroundColor: COLORS.primary },
   shareButtonText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
   revokeButton: { marginTop: 14, paddingVertical: 5 },
   revokeButtonText: { color: COLORS.red, fontSize: 8, fontWeight: '800' },
-  noCodeCard: { marginTop: 20, padding: 22, alignItems: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 23, backgroundColor: '#FAFAFD' },
+  noCodeCard: { marginTop: 20, padding: 22, alignItems: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 23, backgroundColor: COLORS.input },
   noCodeIcon: { width: 70, height: 70, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: COLORS.primarySoft },
   noCodeTitle: { marginTop: 15, color: COLORS.ink, fontSize: 14, fontWeight: '900' },
   noCodeBody: { maxWidth: 320, marginTop: 6, color: COLORS.muted, fontSize: 9, lineHeight: 14, textAlign: 'center' },

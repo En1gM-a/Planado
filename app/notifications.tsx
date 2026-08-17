@@ -13,7 +13,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PlanadoAlert as Alert } from '../components/PlanadoAlert';
+import { PlanadoLoader } from '../components/PlanadoLoader';
 import { useAuth } from '../hooks/useAuth';
+import { COLORS } from '../theme/colors';
 import {
   deleteNotification,
   getMyNotifications,
@@ -26,25 +28,6 @@ import { supabase } from '../services/supabase';
 
 type Filter = 'all' | 'unread';
 type IconName = ComponentProps<typeof Ionicons>['name'];
-
-const COLORS = {
-  background: '#F6F6FB',
-  surface: '#FFFFFF',
-  ink: '#202027',
-  muted: '#777782',
-  faint: '#A1A1AC',
-  line: '#E7E7EF',
-  primary: '#5B5CE2',
-  primarySoft: '#EEEEFF',
-  green: '#24966B',
-  greenSoft: '#E9F8F1',
-  orange: '#DE8139',
-  orangeSoft: '#FFF2E7',
-  red: '#C9515A',
-  redSoft: '#FFF0F1',
-  blue: '#4285D4',
-  blueSoft: '#EAF3FF',
-};
 
 function notificationAppearance(type: NotificationType): {
   icon: IconName;
@@ -330,8 +313,7 @@ export default function NotificationsScreen() {
         >
           {loading ? (
             <View style={styles.loadingState}>
-              <ActivityIndicator color={COLORS.primary} />
-              <Text style={styles.loadingText}>Checking for updates...</Text>
+              <PlanadoLoader compact message="Checking for updates..." />
             </View>
           ) : sections.length ? (
             sections.map((section) => (
@@ -428,12 +410,12 @@ const styles = StyleSheet.create({
   filterButtonActive: { backgroundColor: COLORS.primarySoft },
   filterText: { color: COLORS.muted, fontSize: 10, fontWeight: '800' },
   filterTextActive: { color: COLORS.primary },
-  filterCount: { minWidth: 20, height: 20, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#EEEEF3' },
+  filterCount: { minWidth: 20, height: 20, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: COLORS.elevated },
   filterCountActive: { backgroundColor: COLORS.primary },
   filterCountText: { color: COLORS.muted, fontSize: 8, fontWeight: '900' },
   filterCountTextActive: { color: '#FFFFFF' },
   errorBanner: { marginTop: 11, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, backgroundColor: COLORS.redSoft },
-  errorText: { flex: 1, color: '#9F4148', fontSize: 9, lineHeight: 14 },
+  errorText: { flex: 1, color: COLORS.red, fontSize: 9, lineHeight: 14 },
   listContent: { flexGrow: 1, paddingTop: 18, paddingBottom: 22 },
   loadingState: { minHeight: 260, alignItems: 'center', justifyContent: 'center', gap: 11 },
   loadingText: { color: COLORS.muted, fontSize: 10 },
@@ -441,7 +423,7 @@ const styles = StyleSheet.create({
   sectionLabel: { marginBottom: 8, marginLeft: 4, color: COLORS.faint, fontSize: 8, fontWeight: '900', letterSpacing: 0.95 },
   notificationGroup: { overflow: 'hidden', borderWidth: 1, borderColor: COLORS.line, borderRadius: 21, backgroundColor: COLORS.surface },
   notificationRow: { minHeight: 92, paddingRight: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface },
-  notificationRowUnread: { backgroundColor: '#FCFCFF' },
+  notificationRowUnread: { backgroundColor: COLORS.elevated },
   notificationMain: { flex: 1, minHeight: 92, paddingVertical: 14, paddingLeft: 13, flexDirection: 'row', alignItems: 'center', gap: 11 },
   notificationIcon: { width: 45, height: 45, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
   notificationCopy: { flex: 1 },

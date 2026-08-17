@@ -1,4 +1,27 @@
 <resources>
-  <color name="splashscreen_background">#FFFFFF</color>
+  <color name="splashscreen_background">#F7F7FC</color>
+  <color name="ic_launcher_background">#5B5CE2</color>
   <color name="colorPrimary">#023c69</color>
+  <color name="planado_background">#F6F6FB</color>
+  <color name="planado_surface">#FFFFFF</color>
+  <color name="planado_elevated">#FAFAFD</color>
+  <color name="planado_elevated_strong">#F4F4F8</color>
+  <color name="planado_ink">#202027</color>
+  <color name="planado_muted">#777782</color>
+  <color name="planado_faint">#A1A1AC</color>
+  <color name="planado_line">#E7E7EF</color>
+  <color name="planado_primary">#5B5CE2</color>
+  <color name="planado_primary_soft">#EEEEFF</color>
+  <color name="planado_navy">#282852</color>
+  <color name="planado_lavender">#8587F2</color>
+  <color name="planado_green">#24966B</color>
+  <color name="planado_green_soft">#E9F8F1</color>
+  <color name="planado_orange">#DE8139</color>
+  <color name="planado_orange_soft">#FFF2E7</color>
+  <color name="planado_red">#C9525C</color>
+  <color name="planado_red_soft">#FFF0F1</color>
+  <color name="planado_danger">#C94E59</color>
+  <color name="planado_blue">#4285D4</color>
+  <color name="planado_blue_soft">#EAF3FF</color>
+  <color name="planado_input">#FAFAFD</color>
 </resources>

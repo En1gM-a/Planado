@@ -5,15 +5,16 @@ import {
   Image,
   Platform,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
 import { useAuth } from '../../hooks/useAuth';
 import { signInWithGoogle } from '../../services/authService';
+import { COLORS } from '../../theme/colors';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -47,7 +48,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
       <View style={styles.background}>
         <View style={[styles.glow, styles.glowTop]} />
         <View style={[styles.glow, styles.glowBottom]} />
@@ -55,14 +56,12 @@ export default function LoginScreen() {
         <View style={styles.page}>
           <View style={styles.content}>
             <View style={styles.brand}>
-              <View style={styles.logo}>
-                <View style={styles.logoTop} />
-                <View style={styles.logoGrid}>
-                  <View style={styles.logoDot} />
-                  <View style={[styles.logoDot, styles.logoDotAccent]} />
-                  <View style={styles.logoDot} />
-                  <View style={[styles.logoDot, styles.logoDotAccent]} />
-                </View>
+              <View style={styles.logoSurface}>
+                <Image
+                  accessibilityIgnoresInvertColors
+                  source={require('../../assets/images/planado-logo.png')}
+                  style={styles.logoImage}
+                />
               </View>
               <Text style={styles.brandName}>Planado</Text>
             </View>
@@ -180,8 +179,8 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F7F7FC' },
-  background: { flex: 1, overflow: 'hidden', backgroundColor: '#F7F7FC' },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
+  background: { flex: 1, overflow: 'hidden', backgroundColor: COLORS.background },
   page: { flex: 1, alignItems: 'center', paddingHorizontal: 20 },
   content: {
     flex: 1,
@@ -192,35 +191,22 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   glow: { position: 'absolute', borderRadius: 999, opacity: 0.65 },
-  glowTop: { width: 310, height: 310, right: -150, top: -120, backgroundColor: '#E7E5FF' },
-  glowBottom: { width: 270, height: 270, left: -150, bottom: 40, backgroundColor: '#E1F6ED' },
+  glowTop: { width: 310, height: 310, right: -150, top: -120, backgroundColor: COLORS.primarySoft },
+  glowBottom: { width: 270, height: 270, left: -150, bottom: 40, backgroundColor: COLORS.greenSoft },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  logo: {
-    width: 43,
-    height: 43,
-    borderRadius: 14,
-    padding: 9,
-    backgroundColor: '#5B5CE2',
-    shadowColor: '#5B5CE2',
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-  },
-  logoTop: { height: 4, borderRadius: 4, marginBottom: 5, backgroundColor: '#FFFFFF' },
-  logoGrid: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  logoDot: { width: 8, height: 8, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.45)' },
-  logoDotAccent: { backgroundColor: '#FFFFFF' },
-  brandName: { color: '#17171C', fontSize: 21, fontWeight: '800', letterSpacing: -0.7 },
+  logoSurface: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: COLORS.surface, shadowColor: '#34358A', shadowOpacity: 0.17, shadowRadius: 13, shadowOffset: { width: 0, height: 7 } },
+  logoImage: { width: 39, height: 39, resizeMode: 'contain' },
+  brandName: { color: COLORS.ink, fontSize: 21, fontWeight: '800', letterSpacing: -0.7 },
   heroCopy: { marginTop: 34 },
-  title: { color: '#17171C', fontSize: 39, lineHeight: 43, fontWeight: '800', letterSpacing: -1.8 },
-  subtitle: { maxWidth: 310, marginTop: 12, color: '#6C6C78', fontSize: 16, lineHeight: 24 },
+  title: { color: COLORS.ink, fontSize: 39, lineHeight: 43, fontWeight: '800', letterSpacing: -1.8 },
+  subtitle: { maxWidth: 310, marginTop: 12, color: COLORS.muted, fontSize: 16, lineHeight: 24 },
   illustration: { height: 274, marginVertical: 20, position: 'relative', justifyContent: 'center', alignItems: 'center' },
-  illustrationBack: { position: 'absolute', width: 260, height: 205, borderRadius: 30, backgroundColor: '#EAE9FF', transform: [{ rotate: '-6deg' }] },
+  illustrationBack: { position: 'absolute', width: 260, height: 205, borderRadius: 30, backgroundColor: COLORS.primarySoft, transform: [{ rotate: '-6deg' }] },
   calendarCard: {
     width: 272,
     padding: 19,
     borderRadius: 28,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.surface,
     transform: [{ rotate: '3deg' }],
     shadowColor: '#25204F',
     shadowOpacity: 0.14,
@@ -228,33 +214,33 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 15 },
   },
   calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  calendarMonth: { color: '#23232A', fontSize: 17, fontWeight: '800' },
-  calendarYear: { marginTop: 2, color: '#8B8B96', fontSize: 10 },
+  calendarMonth: { color: COLORS.ink, fontSize: 17, fontWeight: '800' },
+  calendarYear: { marginTop: 2, color: COLORS.muted, fontSize: 10 },
   calendarArrows: { flexDirection: 'row', gap: 8 },
-  calendarArrow: { color: '#777783', fontSize: 22 },
+  calendarArrow: { color: COLORS.muted, fontSize: 22 },
   calendarWeek: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 16 },
-  calendarWeekday: { width: 34, textAlign: 'center', color: '#A1A1AC', fontSize: 9, fontWeight: '700' },
+  calendarWeekday: { width: 34, textAlign: 'center', color: COLORS.faint, fontSize: 9, fontWeight: '700' },
   calendarDates: { marginTop: 7, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', rowGap: 5 },
   calendarDate: { width: 35, height: 35, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   calendarDateSelected: { backgroundColor: '#5B5CE2' },
-  calendarDateText: { color: '#6F6F79', fontSize: 10, fontWeight: '600' },
+  calendarDateText: { color: COLORS.muted, fontSize: 10, fontWeight: '600' },
   calendarDateTextSelected: { color: '#FFFFFF' },
-  eventDot: { width: 3, height: 3, marginTop: 2, borderRadius: 3, backgroundColor: '#52B98B' },
+  eventDot: { width: 3, height: 3, marginTop: 2, borderRadius: 3, backgroundColor: COLORS.green },
   eventDotSelected: { backgroundColor: '#FFFFFF' },
   friendBubble: { position: 'absolute', width: 54, height: 54, borderRadius: 27, borderWidth: 4, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#25204F', shadowOpacity: 0.15, shadowRadius: 14, shadowOffset: { width: 0, height: 8 } },
   friendBubbleLeft: { left: 1, top: 82, backgroundColor: '#2F9E6F' },
   friendBubbleRight: { right: 0, bottom: 5, backgroundColor: '#EC6E63' },
   friendInitial: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
-  planChip: { position: 'absolute', left: 18, bottom: 1, flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, backgroundColor: '#FFFFFF', shadowColor: '#25204F', shadowOpacity: 0.13, shadowRadius: 14, shadowOffset: { width: 0, height: 7 } },
+  planChip: { position: 'absolute', left: 18, bottom: 1, flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, backgroundColor: COLORS.surface, shadowColor: '#25204F', shadowOpacity: 0.13, shadowRadius: 14, shadowOffset: { width: 0, height: 7 } },
   planChipDot: { width: 8, height: 26, borderRadius: 8, backgroundColor: '#5B5CE2' },
-  planChipTitle: { color: '#25252C', fontSize: 11, fontWeight: '800' },
-  planChipMeta: { marginTop: 2, color: '#92929D', fontSize: 8 },
+  planChipTitle: { color: COLORS.ink, fontSize: 11, fontWeight: '800' },
+  planChipMeta: { marginTop: 2, color: COLORS.faint, fontSize: 8 },
   actions: { gap: 15 },
-  googleButton: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 13, borderWidth: 1, borderColor: '#E3E3EC', borderRadius: 17, backgroundColor: '#FFFFFF', shadowColor: '#25204F', shadowOpacity: 0.09, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } },
-  googleButtonPressed: { transform: [{ scale: 0.99 }], backgroundColor: '#FAFAFD' },
+  googleButton: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 13, borderWidth: 1, borderColor: COLORS.line, borderRadius: 17, backgroundColor: COLORS.surface, shadowColor: '#25204F', shadowOpacity: 0.09, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } },
+  googleButtonPressed: { transform: [{ scale: 0.99 }], backgroundColor: COLORS.elevated },
   googleButtonDisabled: { opacity: 0.7 },
   googleLogo: { width: 20, height: 20, resizeMode: 'contain' },
-  googleButtonText: { color: '#24242B', fontSize: 15, fontWeight: '700' },
-  legal: { paddingHorizontal: 16, color: '#92929D', fontSize: 10, lineHeight: 16, textAlign: 'center' },
-  legalLink: { color: '#5B5CE2', fontWeight: '700' },
+  googleButtonText: { color: COLORS.ink, fontSize: 15, fontWeight: '700' },
+  legal: { paddingHorizontal: 16, color: COLORS.faint, fontSize: 10, lineHeight: 16, textAlign: 'center' },
+  legalLink: { color: COLORS.primary, fontWeight: '700' },
 });

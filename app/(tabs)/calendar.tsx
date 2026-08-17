@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, useFocusEffect, useRouter } from 'expo-router';
 import { type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,7 +11,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PlanadoLoader } from '../../components/PlanadoLoader';
 import { useAuth } from '../../hooks/useAuth';
+import { COLORS } from '../../theme/colors';
 import {
   getCalendarEvents,
   getMyCalendarGroups,
@@ -23,23 +24,6 @@ import {
 import { supabase } from '../../services/supabase';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
-
-const COLORS = {
-  background: '#F6F6FB',
-  surface: '#FFFFFF',
-  ink: '#202027',
-  muted: '#777782',
-  faint: '#A1A1AC',
-  line: '#E7E7EF',
-  primary: '#5B5CE2',
-  primarySoft: '#EEEEFF',
-  green: '#24966B',
-  greenSoft: '#E9F8F1',
-  orange: '#DF823C',
-  orangeSoft: '#FFF2E7',
-  red: '#C9525C',
-  redSoft: '#FFF0F1',
-};
 
 const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
@@ -87,21 +71,21 @@ function categoryAppearance(category: EventCategory): {
 } {
   switch (category) {
     case 'birthday':
-      return { icon: 'gift-outline', color: '#D85B87', background: '#FFF0F5' };
+      return { icon: 'gift-outline', color: COLORS.red, background: COLORS.redSoft };
     case 'school':
     case 'study':
-      return { icon: 'book-outline', color: '#4B82D0', background: '#EAF3FF' };
+      return { icon: 'book-outline', color: COLORS.blue, background: COLORS.blueSoft };
     case 'work':
     case 'deadline':
       return { icon: 'briefcase-outline', color: COLORS.orange, background: COLORS.orangeSoft };
     case 'gym':
       return { icon: 'barbell-outline', color: COLORS.green, background: COLORS.greenSoft };
     case 'trip':
-      return { icon: 'airplane-outline', color: '#4A93A5', background: '#EAF7F8' };
+      return { icon: 'airplane-outline', color: COLORS.blue, background: COLORS.blueSoft };
     case 'hangout':
       return { icon: 'people-outline', color: COLORS.primary, background: COLORS.primarySoft };
     case 'personal':
-      return { icon: 'person-outline', color: '#8A65C7', background: '#F5EEFF' };
+      return { icon: 'person-outline', color: COLORS.primary, background: COLORS.primarySoft };
     default:
       return { icon: 'calendar-outline', color: COLORS.primary, background: COLORS.primarySoft };
   }
@@ -327,8 +311,7 @@ export default function CalendarScreen() {
 
             {loading ? (
               <View style={styles.calendarLoading}>
-                <ActivityIndicator color={COLORS.primary} />
-                <Text style={styles.loadingText}>Loading shared plans...</Text>
+                <PlanadoLoader compact message="Loading shared plans..." />
               </View>
             ) : (
               <View style={styles.grid}>
@@ -441,7 +424,7 @@ export default function CalendarScreen() {
                           <Text style={styles.completedBadgeText}>Done</Text>
                         </View>
                       ) : null}
-                      <Ionicons color="#B3B3BE" name="chevron-forward" size={18} />
+                      <Ionicons color={COLORS.faint} name="chevron-forward" size={18} />
                     </View>
                   </Pressable>
                 );
@@ -486,10 +469,10 @@ const styles = StyleSheet.create({
   groupChipText: { color: COLORS.muted, fontSize: 9, fontWeight: '800' },
   groupChipTextActive: { color: '#FFFFFF' },
   errorBanner: { marginTop: 11, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, backgroundColor: COLORS.redSoft },
-  errorText: { flex: 1, color: '#9F4148', fontSize: 9, lineHeight: 14 },
+  errorText: { flex: 1, color: COLORS.red, fontSize: 9, lineHeight: 14 },
   calendarCard: { marginTop: 14, padding: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 25, backgroundColor: COLORS.surface },
   monthHeader: { minHeight: 51, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  monthArrow: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#F5F5FA' },
+  monthArrow: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: COLORS.elevated },
   monthCopy: { flex: 1, paddingLeft: 4 },
   monthTitle: { color: COLORS.ink, fontSize: 16, fontWeight: '900', letterSpacing: -0.3 },
   monthMeta: { marginTop: 2, color: COLORS.faint, fontSize: 8 },
@@ -506,7 +489,7 @@ const styles = StyleSheet.create({
   dayNumberCircle: { width: 25, height: 25, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
   todayCircle: { backgroundColor: COLORS.primarySoft },
   dayNumber: { color: COLORS.ink, fontSize: 10, fontWeight: '800' },
-  dayNumberOutside: { color: '#C7C7CE' },
+  dayNumberOutside: { color: COLORS.faint },
   dayNumberToday: { color: COLORS.primary },
   dayNumberSelected: { color: '#FFFFFF' },
   eventDots: { minHeight: 10, marginTop: 3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 },
@@ -521,7 +504,7 @@ const styles = StyleSheet.create({
   agendaDateNumber: { marginTop: 1, color: COLORS.primary, fontSize: 17, fontWeight: '900' },
   eventList: { gap: 9 },
   eventCard: { minHeight: 84, paddingRight: 13, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.surface },
-  eventCardCompleted: { backgroundColor: '#FAFAFC' },
+  eventCardCompleted: { backgroundColor: COLORS.elevated },
   eventAccent: { width: 5, alignSelf: 'stretch' },
   eventIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
   eventCopy: { flex: 1, paddingVertical: 12 },

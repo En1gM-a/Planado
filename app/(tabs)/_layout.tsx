@@ -1,20 +1,17 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Redirect, Tabs } from 'expo-router';
-import { ActivityIndicator, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PlanadoLoader } from '../../components/PlanadoLoader';
 import { useAuth } from '../../hooks/useAuth';
+import { COLORS } from '../../theme/colors';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const { loading, user } = useAuth();
 
   if (loading) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F6F6FB' }}>
-        <ActivityIndicator color="#5B5CE2" />
-      </View>
-    );
+    return <PlanadoLoader fullScreen message="Opening Planado..." />;
   }
 
   if (!user) return <Redirect href="/(auth)/login" />;
@@ -24,14 +21,15 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarHideOnKeyboard: true,
-        tabBarActiveTintColor: '#5B5CE2',
-        tabBarInactiveTintColor: '#8B8B96',
+        sceneStyle: { backgroundColor: COLORS.background },
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.faint,
         tabBarStyle: {
           height: 60 + Math.max(insets.bottom, 8),
           paddingTop: 8,
           paddingBottom: Math.max(insets.bottom, 8),
-          borderTopColor: '#E7E7EF',
-          backgroundColor: '#FFFFFF',
+          borderTopColor: COLORS.line,
+          backgroundColor: COLORS.surface,
         },
         tabBarLabelStyle: {
           fontSize: 11,

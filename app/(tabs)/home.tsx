@@ -2,18 +2,19 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   Pressable,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PlanadoLoader } from '../../components/PlanadoLoader';
 import { useAuth } from '../../hooks/useAuth';
+import { COLORS } from '../../theme/colors';
 import { getMyProfile } from '../../services/authService';
 import { getMyUnreadNotificationCount } from '../../services/notificationService';
 import { supabase } from '../../services/supabase';
@@ -40,27 +41,6 @@ type Event = {
   color: string | null;
   location: string | null;
   group_name: string;
-};
-
-type Summary = {
-  summary: string;
-  created_at: string;
-  group_name: string;
-};
-
-const COLORS = {
-  background: '#F6F6FB',
-  surface: '#FFFFFF',
-  ink: '#202027',
-  muted: '#7D7D89',
-  faint: '#A2A2AC',
-  line: '#E8E8F0',
-  primary: '#5B5CE2',
-  primarySoft: '#EEEEFF',
-  lavender: '#8587F2',
-  green: '#2B9C72',
-  greenSoft: '#EAF8F2',
-  orange: '#E98B45',
 };
 
 function firstRelated<T>(value: T | T[] | null | undefined): T | null {
@@ -100,7 +80,6 @@ export default function HomeScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
-  const [summary, setSummary] = useState<Summary | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -114,7 +93,7 @@ export default function HomeScreen() {
     setError(null);
 
     try {
-      const [profileData, membershipResult, eventResult, notificationResult, summaryResult] =
+      const [profileData, membershipResult, eventResult, notificationResult] =
         await Promise.all([
           getMyProfile(),
           supabase
@@ -130,15 +109,9 @@ export default function HomeScreen() {
             .order('start_time', { ascending: true })
             .limit(5),
           getMyUnreadNotificationCount(),
-          supabase
-            .from('ai_summaries')
-            .select('summary, created_at, groups(name)')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
         ]);
 
-      const firstError = [membershipResult, eventResult, summaryResult]
+      const firstError = [membershipResult, eventResult]
         .map((result) => result.error)
         .find(Boolean);
       if (firstError) throw firstError;
@@ -168,24 +141,10 @@ export default function HomeScreen() {
         };
       });
 
-      const latestSummary = summaryResult.data;
-      const summaryGroup = firstRelated(
-        latestSummary?.groups as unknown as { name: string } | null,
-      );
-
       setProfile(profileData as Profile | null);
       setGroups(mappedGroups);
       setEvents(mappedEvents);
       setUnreadCount(notificationResult);
-      setSummary(
-        latestSummary
-          ? {
-              summary: latestSummary.summary,
-              created_at: latestSummary.created_at,
-              group_name: summaryGroup?.name ?? 'Your groups',
-            }
-          : null,
-      );
     } catch (loadError) {
       console.error('Could not load Home dashboard:', loadError);
       setError('Some plans could not be loaded. Pull down to try again.');
@@ -230,7 +189,7 @@ export default function HomeScreen() {
   }).format(new Date());
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -303,22 +262,15 @@ export default function HomeScreen() {
                 <Text style={styles.aiBadgeMark}>✦</Text>
                 <Text style={styles.aiBadgeText}>PLANADO BRIEF</Text>
               </View>
-              <Text style={styles.aiTime}>12 AM · 12 PM</Text>
+              <Text style={styles.aiTime}>FUTURE UPDATE</Text>
             </View>
-            <Text style={styles.aiTitle}>
-              {summary ? `${summary.group_name}, at a glance` : 'Your day, without the digging'}
-            </Text>
+            <Text style={styles.aiTitle}>AI Brief is coming soon</Text>
             <Text style={styles.aiBody} numberOfLines={4}>
-              {summary?.summary ??
-                'When your groups begin planning, your twice-daily AI brief will collect what changed, what is next, and what needs your attention.'}
+              A future Planado update will summarize group changes, upcoming plans, and the items that need your attention.
             </Text>
             <View style={styles.aiFooter}>
-              <View style={styles.liveDot} />
-              <Text style={styles.aiFooterText}>
-                {summary
-                  ? `Updated ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(summary.created_at))}`
-                  : 'Ready when your first group is active'}
-              </Text>
+              <Ionicons color="#ABABD0" name="time-outline" size={13} />
+              <Text style={styles.aiFooterText}>Preview only · No summaries are generated yet</Text>
             </View>
           </View>
 
@@ -356,8 +308,7 @@ export default function HomeScreen() {
 
           {loading ? (
             <View style={styles.loadingCard}>
-              <ActivityIndicator color={COLORS.primary} />
-              <Text style={styles.loadingText}>Gathering your plans...</Text>
+              <PlanadoLoader compact message="Gathering your plans..." />
             </View>
           ) : events.length > 0 ? (
             <View style={styles.eventList}>
@@ -458,7 +409,7 @@ const styles = StyleSheet.create({
   iconButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, backgroundColor: COLORS.surface },
   notificationBadge: { position: 'absolute', top: -4, right: -4, minWidth: 17, height: 17, paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: COLORS.background, borderRadius: 9, backgroundColor: '#F26767' },
   notificationBadgeText: { color: '#FFFFFF', fontSize: 8, fontWeight: '900' },
-  avatar: { width: 44, height: 44, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF', borderRadius: 16, backgroundColor: COLORS.primarySoft, shadowColor: '#34344E', shadowOpacity: 0.13, shadowRadius: 10, shadowOffset: { width: 0, height: 5 } },
+  avatar: { width: 44, height: 44, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: COLORS.surface, borderRadius: 16, backgroundColor: COLORS.primarySoft, shadowColor: '#34344E', shadowOpacity: 0.13, shadowRadius: 10, shadowOffset: { width: 0, height: 5 } },
   avatarImage: { width: '100%', height: '100%' },
   avatarInitial: { color: COLORS.primary, fontSize: 18, fontWeight: '900' },
   dayStrip: { marginTop: 23, padding: 5, flexDirection: 'row', borderWidth: 1, borderColor: COLORS.line, borderRadius: 22, backgroundColor: COLORS.surface },
@@ -469,7 +420,7 @@ const styles = StyleSheet.create({
   dayNumber: { marginTop: 4, color: COLORS.ink, fontSize: 16, fontWeight: '800' },
   dayNumberActive: { color: '#FFFFFF' },
   dayDot: { width: 4, height: 4, marginTop: 4, borderRadius: 2, backgroundColor: '#FFFFFF' },
-  errorBanner: { marginTop: 12, padding: 11, color: '#A04444', fontSize: 11, lineHeight: 16, borderRadius: 12, backgroundColor: '#FFF0F0' },
+  errorBanner: { marginTop: 12, padding: 11, color: COLORS.red, fontSize: 11, lineHeight: 16, borderRadius: 12, backgroundColor: COLORS.redSoft },
   aiCard: { minHeight: 190, marginTop: 17, padding: 20, overflow: 'hidden', borderRadius: 26, backgroundColor: '#24244E' },
   aiGlowOne: { position: 'absolute', width: 180, height: 180, top: -95, right: -50, borderRadius: 90, backgroundColor: '#696BD8', opacity: 0.5 },
   aiGlowTwo: { position: 'absolute', width: 120, height: 120, bottom: -78, left: 24, borderRadius: 60, backgroundColor: '#4CACE0', opacity: 0.2 },
@@ -481,7 +432,6 @@ const styles = StyleSheet.create({
   aiTitle: { maxWidth: 460, marginTop: 22, color: '#FFFFFF', fontSize: 20, lineHeight: 25, fontWeight: '800', letterSpacing: -0.5 },
   aiBody: { maxWidth: 570, marginTop: 8, color: '#C6C6E2', fontSize: 12, lineHeight: 18 },
   aiFooter: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#7EE1B8' },
   aiFooterText: { color: '#ABABD0', fontSize: 9, fontWeight: '600' },
   quickRow: { marginTop: 14, flexDirection: 'row', gap: 10 },
   primaryAction: { flex: 1.6, minHeight: 72, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 20, backgroundColor: COLORS.primary },
@@ -509,7 +459,7 @@ const styles = StyleSheet.create({
   eventContent: { flex: 1, paddingVertical: 14 },
   eventTitle: { color: COLORS.ink, fontSize: 13, fontWeight: '800' },
   eventMeta: { marginTop: 5, color: COLORS.muted, fontSize: 9 },
-  chevron: { paddingHorizontal: 16, color: '#B0B0BB', fontSize: 25, fontWeight: '300' },
+  chevron: { paddingHorizontal: 16, color: COLORS.faint, fontSize: 25, fontWeight: '300' },
   emptyCard: { minHeight: 134, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 17, borderWidth: 1, borderColor: COLORS.line, borderRadius: 23, backgroundColor: COLORS.surface },
   emptyIllustration: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: COLORS.primarySoft },
   emptyCalendarTop: { position: 'absolute', top: 16, width: 39, height: 7, borderRadius: 5, backgroundColor: '#BFC0F7' },

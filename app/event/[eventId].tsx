@@ -1,13 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, Redirect, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PlanadoLoader } from '../../components/PlanadoLoader';
 import { useAuth } from '../../hooks/useAuth';
 import { getCalendarEventById, type CalendarEvent } from '../../services/eventService';
-
-const COLORS = { background: '#F6F6FB', surface: '#FFFFFF', ink: '#202027', muted: '#777782', faint: '#A1A1AC', line: '#E7E7EF', primary: '#5B5CE2', primarySoft: '#EEEEFF', red: '#C9525C', redSoft: '#FFF0F1' };
+import { COLORS } from '../../theme/colors';
 
 function formatRange(event: CalendarEvent) {
   const start = new Date(event.start_time);
@@ -61,7 +61,7 @@ export default function EventDetailScreen() {
   useFocusEffect(useCallback(() => { void loadEvent(); }, [loadEvent]));
 
   if (!authLoading && !user) return <Redirect href="/login" />;
-  if (authLoading || loading) return <SafeAreaView style={styles.safeArea}><View style={styles.center}><ActivityIndicator color={COLORS.primary} /><Text style={styles.centerText}>Opening event...</Text></View></SafeAreaView>;
+  if (authLoading || loading) return <SafeAreaView style={styles.safeArea}><PlanadoLoader fullScreen message="Opening event..." /></SafeAreaView>;
 
   if (!event) return (
     <SafeAreaView style={styles.safeArea}>

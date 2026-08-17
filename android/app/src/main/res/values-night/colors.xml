@@ -1,0 +1,26 @@
+<resources>
+  <color name="splashscreen_background">#101119</color>
+  <color name="colorPrimary">#8B8DFF</color>
+  <color name="planado_background">#101119</color>
+  <color name="planado_surface">#1A1C27</color>
+  <color name="planado_elevated">#222431</color>
+  <color name="planado_elevated_strong">#2A2C3A</color>
+  <color name="planado_ink">#F3F3F8</color>
+  <color name="planado_muted">#B7B8C5</color>
+  <color name="planado_faint">#858795</color>
+  <color name="planado_line">#303342</color>
+  <color name="planado_primary">#8B8DFF</color>
+  <color name="planado_primary_soft">#2A2B50</color>
+  <color name="planado_navy">#252650</color>
+  <color name="planado_lavender">#A2A4FF</color>
+  <color name="planado_green">#57C99A</color>
+  <color name="planado_green_soft">#17372D</color>
+  <color name="planado_orange">#F0A15D</color>
+  <color name="planado_orange_soft">#3B2A1D</color>
+  <color name="planado_red">#FF7D88</color>
+  <color name="planado_red_soft">#412228</color>
+  <color name="planado_danger">#FF7D88</color>
+  <color name="planado_blue">#75A9ED</color>
+  <color name="planado_blue_soft">#1C3049</color>
+  <color name="planado_input">#222431</color>
+</resources>

@@ -3,26 +3,46 @@
     "name": "Planado",
     "slug": "planado",
     "version": "1.0.0",
+    "icon": "./assets/images/icon.png",
     "orientation": "portrait",
     "scheme": "planado",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.planado.app",
       "runtimeVersion": {
         "policy": "appVersion"
       }
     },
     "android": {
+      "icon": "./assets/images/icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#5B5CE2"
+      },
       "package": "com.planado.app",
       "predictiveBackGestureEnabled": false,
       "runtimeVersion": "1.0.0"
     },
     "web": {
+      "favicon": "./assets/images/favicon.png",
       "output": "static"
     },
     "plugins": [
       "expo-router",
-      "expo-splash-screen"
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 164,
+          "resizeMode": "contain",
+          "backgroundColor": "#F7F7FC",
+          "dark": {
+            "image": "./assets/images/splash-icon-dark.png",
+            "backgroundColor": "#101119"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

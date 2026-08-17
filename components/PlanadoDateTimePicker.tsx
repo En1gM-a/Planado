@@ -9,6 +9,8 @@ import {
   View,
 } from 'react-native';
 
+import { COLORS } from '../theme/colors';
+
 type PickerMode = 'date' | 'time';
 
 type PlanadoDateTimePickerProps = {
@@ -18,16 +20,6 @@ type PlanadoDateTimePickerProps = {
   title: string;
   value: Date;
   visible: boolean;
-};
-
-const COLORS = {
-  ink: '#202027',
-  muted: '#777782',
-  faint: '#A1A1AC',
-  line: '#E7E7EF',
-  primary: '#5B5CE2',
-  primarySoft: '#EEEEFF',
-  surface: '#FFFFFF',
 };
 
 const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
@@ -315,12 +307,12 @@ const styles = StyleSheet.create({
   headerCopy: { flex: 1 },
   eyebrow: { color: COLORS.primary, fontSize: 7, fontWeight: '900', letterSpacing: 0.9 },
   title: { marginTop: 3, color: COLORS.ink, fontSize: 18, fontWeight: '900', letterSpacing: -0.35 },
-  closeButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, backgroundColor: '#F8F8FC' },
+  closeButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, backgroundColor: COLORS.elevated },
   selectionPreview: { minHeight: 48, marginTop: 16, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 15, backgroundColor: COLORS.primarySoft },
   selectionPreviewText: { color: COLORS.primary, fontSize: 12, fontWeight: '900' },
   calendar: { marginTop: 12 },
   monthHeader: { minHeight: 43, flexDirection: 'row', alignItems: 'center' },
-  monthButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#F5F5FA' },
+  monthButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: COLORS.elevated },
   monthTitle: { flex: 1, color: COLORS.ink, fontSize: 14, fontWeight: '900', textAlign: 'center' },
   weekdayRow: { marginTop: 8, flexDirection: 'row' },
   weekday: { width: '14.285714%', color: COLORS.faint, fontSize: 7, fontWeight: '900', textAlign: 'center', letterSpacing: 0.45 },
@@ -328,17 +320,17 @@ const styles = StyleSheet.create({
   day: { width: '14.285714%', height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   daySelected: { backgroundColor: COLORS.primary },
   dayText: { color: COLORS.ink, fontSize: 10, fontWeight: '800' },
-  dayTextOutside: { color: '#C7C7CE' },
+  dayTextOutside: { color: COLORS.faint },
   dayTextToday: { color: COLORS.primary },
   dayTextSelected: { color: '#FFFFFF' },
   todayDot: { position: 'absolute', bottom: 5, width: 3, height: 3, borderRadius: 2, backgroundColor: COLORS.primary },
   clockSection: { alignItems: 'center' },
   periodRow: { marginTop: 13, flexDirection: 'row', gap: 8 },
-  periodButton: { width: 64, height: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, backgroundColor: '#FAFAFD' },
+  periodButton: { width: 64, height: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, backgroundColor: COLORS.input },
   periodButtonActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primary },
   periodText: { color: COLORS.muted, fontSize: 9, fontWeight: '900' },
   periodTextActive: { color: '#FFFFFF' },
-  clockFace: { width: CLOCK_SIZE, height: CLOCK_SIZE, marginTop: 10, borderWidth: 1, borderColor: COLORS.line, borderRadius: CLOCK_SIZE / 2, backgroundColor: '#FAFAFD' },
+  clockFace: { width: CLOCK_SIZE, height: CLOCK_SIZE, marginTop: 10, borderWidth: 1, borderColor: COLORS.line, borderRadius: CLOCK_SIZE / 2, backgroundColor: COLORS.input },
   clockCenter: { position: 'absolute', zIndex: 2, left: CLOCK_CENTER - 4, top: CLOCK_CENTER - 4, width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.primary },
   clockHand: { position: 'absolute', zIndex: 1, left: CLOCK_CENTER - 1, top: 35, width: 2, height: CLOCK_CENTER - 35, backgroundColor: '#BDBDFA', transformOrigin: 'bottom' },
   hourButton: { position: 'absolute', zIndex: 3, width: HOUR_SIZE, height: HOUR_SIZE, alignItems: 'center', justifyContent: 'center', borderRadius: HOUR_SIZE / 2 },
@@ -347,12 +339,12 @@ const styles = StyleSheet.create({
   hourTextActive: { color: '#FFFFFF' },
   minuteLabel: { alignSelf: 'flex-start', marginTop: 10, color: COLORS.faint, fontSize: 7, fontWeight: '900', letterSpacing: 0.7 },
   minuteRow: { paddingTop: 7, gap: 7 },
-  minuteButton: { width: 42, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, backgroundColor: '#FAFAFD' },
+  minuteButton: { width: 42, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, backgroundColor: COLORS.input },
   minuteButtonActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
   minuteText: { color: COLORS.muted, fontSize: 9, fontWeight: '900' },
   minuteTextActive: { color: COLORS.primary },
   actions: { marginTop: 18, flexDirection: 'row', gap: 9 },
-  cancelButton: { flex: 1, minHeight: 47, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, backgroundColor: '#F8F8FC' },
+  cancelButton: { flex: 1, minHeight: 47, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, backgroundColor: COLORS.elevated },
   cancelText: { color: COLORS.muted, fontSize: 10, fontWeight: '900' },
   confirmButton: { flex: 1.35, minHeight: 47, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 15, backgroundColor: COLORS.primary },
   confirmText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },

@@ -14,7 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 
 import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
+import { PlanadoLoader } from '../../components/PlanadoLoader';
 import { useAuth } from '../../hooks/useAuth';
+import { COLORS } from '../../theme/colors';
 import {
   getWildcatScheduleStats,
   importWildcatSchedule,
@@ -24,23 +26,6 @@ import {
   type WildcatSchedulePayload,
 } from '../../services/citScheduleService';
 import { getGroupDetails, type GroupDetails } from '../../services/groupService';
-
-const COLORS = {
-  background: '#F6F6FB',
-  surface: '#FFFFFF',
-  ink: '#202027',
-  muted: '#777782',
-  faint: '#A1A1AC',
-  line: '#E7E7EF',
-  primary: '#5B5CE2',
-  primarySoft: '#EEEEFF',
-  green: '#24966B',
-  greenSoft: '#E9F8F1',
-  orange: '#D9792E',
-  orangeSoft: '#FFF2E7',
-  red: '#C9515A',
-  redSoft: '#FFF0F1',
-};
 
 const WILDCAT_CAPTURE_SCRIPT = `
   (function () {
@@ -260,10 +245,7 @@ export default function ConnectCitScheduleScreen() {
   if (authLoading || loadingGroup) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centered}>
-          <ActivityIndicator color={COLORS.primary} size="large" />
-          <Text style={styles.loadingText}>Preparing secure schedule import...</Text>
-        </View>
+        <PlanadoLoader fullScreen message="Preparing secure schedule import..." />
       </SafeAreaView>
     );
   }
@@ -415,8 +397,7 @@ export default function ConnectCitScheduleScreen() {
           startInLoadingState
           renderLoading={() => (
             <View style={styles.webLoading}>
-              <ActivityIndicator color={COLORS.primary} size="large" />
-              <Text style={styles.loadingText}>Opening Wildcat One...</Text>
+              <PlanadoLoader compact message="Opening Wildcat One..." />
             </View>
           )}
           style={styles.webView}
@@ -469,7 +450,7 @@ const styles = StyleSheet.create({
   browserNoticeCopy: { flex: 1 },
   browserNoticeTitle: { color: COLORS.green, fontSize: 10, fontWeight: '900' },
   browserNoticeText: { marginTop: 3, color: '#4D7767', fontSize: 8, lineHeight: 13 },
-  switchAccountButton: { minHeight: 38, marginHorizontal: 12, marginBottom: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: '#F0D8DB', borderRadius: 13, backgroundColor: COLORS.redSoft },
+  switchAccountButton: { minHeight: 38, marginHorizontal: 12, marginBottom: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.redSoft, borderRadius: 13, backgroundColor: COLORS.redSoft },
   switchAccountText: { color: COLORS.red, fontSize: 9, fontWeight: '800' },
   progressTrack: { height: 3, backgroundColor: COLORS.primarySoft },
   progressBar: { height: 3, backgroundColor: COLORS.primary },
@@ -505,7 +486,7 @@ const styles = StyleSheet.create({
   separator: { height: 1, marginLeft: 67, backgroundColor: COLORS.line },
   importButton: { minHeight: 54, marginTop: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 18, backgroundColor: COLORS.primary },
   importButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
-  forgetButton: { minHeight: 47, marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderColor: '#F0D8DB', borderRadius: 16, backgroundColor: COLORS.redSoft },
+  forgetButton: { minHeight: 47, marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderColor: COLORS.redSoft, borderRadius: 16, backgroundColor: COLORS.redSoft },
   forgetButtonText: { color: COLORS.red, fontSize: 10, fontWeight: '900' },
   importHint: { marginTop: 8, color: COLORS.faint, fontSize: 8, lineHeight: 12, textAlign: 'center' },
   pressed: { opacity: 0.77, transform: [{ scale: 0.99 }] },

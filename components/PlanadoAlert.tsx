@@ -11,6 +11,8 @@ import {
   type AlertOptions,
 } from 'react-native';
 
+import { COLORS } from '../theme/colors';
+
 type DialogRequest = {
   title: string;
   message?: string;
@@ -45,18 +47,18 @@ function dialogTone(request: DialogRequest) {
   const destructive = request.buttons.some((button) => button.style === 'destructive');
 
   if (destructive || /delete|remove|leave|deactivate|sign out/.test(text)) {
-    return { icon: 'trash-outline' as const, color: '#C9525C', soft: '#FFF0F1' };
+    return { icon: 'trash-outline' as const, color: COLORS.red, soft: COLORS.redSoft };
   }
   if (/could not|failed|error|unavailable/.test(text)) {
-    return { icon: 'alert-circle-outline' as const, color: '#C9525C', soft: '#FFF0F1' };
+    return { icon: 'alert-circle-outline' as const, color: COLORS.red, soft: COLORS.redSoft };
   }
   if (/created|joined|success|ready|imported/.test(text)) {
-    return { icon: 'checkmark-circle-outline' as const, color: '#24966B', soft: '#E9F8F1' };
+    return { icon: 'checkmark-circle-outline' as const, color: COLORS.green, soft: COLORS.greenSoft };
   }
   if (/choose|options|role|action/.test(text)) {
-    return { icon: 'options-outline' as const, color: '#5B5CE2', soft: '#EEEEFF' };
+    return { icon: 'options-outline' as const, color: COLORS.primary, soft: COLORS.primarySoft };
   }
-  return { icon: 'sparkles-outline' as const, color: '#5B5CE2', soft: '#EEEEFF' };
+  return { icon: 'sparkles-outline' as const, color: COLORS.primary, soft: COLORS.primarySoft };
 }
 
 export function PlanadoAlertProvider({ children }: { children: ReactNode }) {
@@ -118,7 +120,7 @@ export function PlanadoAlertProvider({ children }: { children: ReactNode }) {
                     onPress={() => dismiss()}
                     style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
                   >
-                    <Ionicons color="#777782" name="close" size={19} />
+                    <Ionicons color={COLORS.muted} name="close" size={19} />
                   </Pressable>
                 ) : null}
               </View>
@@ -186,7 +188,7 @@ const styles = StyleSheet.create({
     maxHeight: '82%',
     padding: 20,
     borderRadius: 28,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.surface,
     shadowColor: '#171726',
     shadowOffset: { width: 0, height: 16 },
     shadowOpacity: 0.22,
@@ -212,13 +214,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E7E7EF',
+    borderColor: COLORS.line,
     borderRadius: 12,
-    backgroundColor: '#F8F8FC',
+    backgroundColor: COLORS.elevated,
   },
   title: {
     marginTop: 16,
-    color: '#202027',
+    color: COLORS.ink,
     fontSize: 20,
     fontWeight: '900',
     letterSpacing: -0.45,
@@ -226,7 +228,7 @@ const styles = StyleSheet.create({
   messageScroll: { maxHeight: 270 },
   messageContent: { paddingTop: 9 },
   message: {
-    color: '#6F6F7B',
+    color: COLORS.muted,
     fontSize: 13,
     lineHeight: 20,
   },
@@ -244,17 +246,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 15,
-    backgroundColor: '#5B5CE2',
+    backgroundColor: COLORS.primary,
   },
   actionButtonStacked: { width: '100%' },
   cancelButton: {
     borderWidth: 1,
-    borderColor: '#E7E7EF',
-    backgroundColor: '#F7F7FB',
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.elevated,
   },
-  destructiveButton: { backgroundColor: '#FFF0F1' },
+  destructiveButton: { backgroundColor: COLORS.redSoft },
   actionText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
-  cancelText: { color: '#696975' },
-  destructiveText: { color: '#B7444E' },
+  cancelText: { color: COLORS.muted },
+  destructiveText: { color: COLORS.red },
   pressed: { opacity: 0.72, transform: [{ scale: 0.985 }] },
 });

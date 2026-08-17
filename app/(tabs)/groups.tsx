@@ -18,7 +18,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
+import { PlanadoLoader } from '../../components/PlanadoLoader';
 import { useAuth } from '../../hooks/useAuth';
+import { COLORS } from '../../theme/colors';
 import {
   createGroup,
   getMyGroups,
@@ -31,24 +33,6 @@ import { supabase } from '../../services/supabase';
 
 type RoleFilter = 'all' | GroupRole;
 type GroupModal = 'create' | 'join' | null;
-
-const COLORS = {
-  background: '#F6F6FB',
-  surface: '#FFFFFF',
-  ink: '#202027',
-  muted: '#777782',
-  faint: '#A1A1AC',
-  line: '#E7E7EF',
-  primary: '#5B5CE2',
-  primarySoft: '#EEEEFF',
-  navy: '#282852',
-  green: '#24966B',
-  greenSoft: '#E9F8F1',
-  orange: '#DE8139',
-  orangeSoft: '#FFF2E7',
-  red: '#C9515A',
-  redSoft: '#FFF0F1',
-};
 
 const MEMBER_COLORS = ['#5B5CE2', '#2C9B73', '#E58743', '#D45C86', '#4285D4', '#8B63C7'];
 const deviceTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -236,7 +220,7 @@ export default function GroupsScreen() {
             <TextInput
               onChangeText={setSearch}
               placeholder="Search your groups"
-              placeholderTextColor="#A9A9B3"
+              placeholderTextColor={COLORS.faint}
               style={styles.searchInput}
               value={search}
             />
@@ -285,8 +269,7 @@ export default function GroupsScreen() {
 
           {loading ? (
             <View style={styles.loadingState}>
-              <ActivityIndicator color={COLORS.primary} />
-              <Text style={styles.loadingText}>Gathering your groups...</Text>
+              <PlanadoLoader compact message="Gathering your groups..." />
             </View>
           ) : visibleGroups.length ? (
             <View style={styles.groupList}>
@@ -338,7 +321,7 @@ export default function GroupsScreen() {
                       <Text numberOfLines={1} style={[styles.nextEventText, { color: group.color }]}>{nextEventLabel(group)}</Text>
                     </View>
                   </View>
-                  <Ionicons color="#B5B5BE" name="chevron-forward" size={18} />
+                  <Ionicons color={COLORS.faint} name="chevron-forward" size={18} />
                 </Pressable>
               ))}
             </View>
@@ -507,7 +490,7 @@ function GroupActionModal({
               <Text style={styles.inputLabel}>GROUP NAME</Text>
               <View style={styles.inputShell}>
                 <Ionicons color={COLORS.faint} name="people-outline" size={18} />
-                <TextInput maxLength={80} onChangeText={setName} placeholder="Weekend crew" placeholderTextColor="#ABABB4" style={styles.input} value={name} />
+                <TextInput maxLength={80} onChangeText={setName} placeholder="Weekend crew" placeholderTextColor={COLORS.faint} style={styles.input} value={name} />
                 <Text style={styles.inputCount}>{name.length}/80</Text>
               </View>
               <View style={styles.labelRow}>
@@ -515,7 +498,7 @@ function GroupActionModal({
                 <Text style={styles.inputCount}>{description.length}/500</Text>
               </View>
               <View style={[styles.inputShell, styles.descriptionShell]}>
-                <TextInput maxLength={500} multiline onChangeText={setDescription} placeholder="What does this group plan together?" placeholderTextColor="#ABABB4" style={[styles.input, styles.descriptionInput]} textAlignVertical="top" value={description} />
+                <TextInput maxLength={500} multiline onChangeText={setDescription} placeholder="What does this group plan together?" placeholderTextColor={COLORS.faint} style={[styles.input, styles.descriptionInput]} textAlignVertical="top" value={description} />
               </View>
               <View style={styles.labelRow}>
                 <Text style={styles.inputLabel}>TIMEZONE</Text>
@@ -525,7 +508,7 @@ function GroupActionModal({
               </View>
               <View style={styles.inputShell}>
                 <Ionicons color={COLORS.faint} name="globe-outline" size={18} />
-                <TextInput autoCapitalize="none" onChangeText={setTimezone} placeholder="Asia/Manila" placeholderTextColor="#ABABB4" style={styles.input} value={timezone} />
+                <TextInput autoCapitalize="none" onChangeText={setTimezone} placeholder="Asia/Manila" placeholderTextColor={COLORS.faint} style={styles.input} value={timezone} />
               </View>
             </ScrollView>
           ) : (
@@ -538,7 +521,7 @@ function GroupActionModal({
                   maxLength={12}
                   onChangeText={(value) => setInviteCode(value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                   placeholder="AB12CD34"
-                  placeholderTextColor="#B5B5C0"
+                  placeholderTextColor={COLORS.faint}
                   style={styles.codeInput}
                   value={inviteCode}
                 />
@@ -601,7 +584,7 @@ const styles = StyleSheet.create({
   filterText: { color: COLORS.muted, fontSize: 8, fontWeight: '800' },
   filterTextActive: { color: COLORS.primary },
   errorBanner: { marginTop: 11, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, backgroundColor: COLORS.redSoft },
-  errorText: { flex: 1, color: '#9F4148', fontSize: 9, lineHeight: 14 },
+  errorText: { flex: 1, color: COLORS.red, fontSize: 9, lineHeight: 14 },
   sectionHeader: { marginTop: 23, marginBottom: 11, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   sectionTitle: { color: COLORS.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.35 },
   sectionSubtitle: { marginTop: 3, color: COLORS.faint, fontSize: 9 },
@@ -618,7 +601,7 @@ const styles = StyleSheet.create({
   groupContent: { flex: 1 },
   groupTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   groupName: { flexShrink: 1, color: COLORS.ink, fontSize: 14, fontWeight: '900' },
-  roleBadge: { paddingVertical: 4, paddingHorizontal: 7, borderRadius: 8, backgroundColor: '#F0F0F4' },
+  roleBadge: { paddingVertical: 4, paddingHorizontal: 7, borderRadius: 8, backgroundColor: COLORS.elevated },
   ownerBadge: { backgroundColor: COLORS.primarySoft },
   roleBadgeText: { color: COLORS.muted, fontSize: 6, fontWeight: '900', textTransform: 'uppercase' },
   ownerBadgeText: { color: COLORS.primary },
@@ -642,26 +625,26 @@ const styles = StyleSheet.create({
   emptySecondaryText: { color: COLORS.primary, fontSize: 9, fontWeight: '800' },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(20,20,35,0.45)' },
   modalCard: { width: '100%', maxWidth: 720, maxHeight: '90%', alignSelf: 'center', paddingHorizontal: 20, paddingTop: 9, paddingBottom: Platform.OS === 'ios' ? 32 : 22, borderTopLeftRadius: 29, borderTopRightRadius: 29, backgroundColor: COLORS.surface },
-  modalHandle: { width: 38, height: 4, alignSelf: 'center', marginBottom: 16, borderRadius: 2, backgroundColor: '#D9D9E2' },
+  modalHandle: { width: 38, height: 4, alignSelf: 'center', marginBottom: 16, borderRadius: 2, backgroundColor: COLORS.line },
   modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   modalIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 16 },
   modalHeaderCopy: { flex: 1 },
   modalTitle: { color: COLORS.ink, fontSize: 18, fontWeight: '900' },
   modalSubtitle: { marginTop: 3, color: COLORS.muted, fontSize: 9 },
-  modalClose: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: '#F4F4F8' },
+  modalClose: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: COLORS.elevatedStrong },
   modalError: { marginTop: 14, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 13, backgroundColor: COLORS.redSoft },
-  modalErrorText: { flex: 1, color: '#9F4148', fontSize: 9, lineHeight: 14 },
+  modalErrorText: { flex: 1, color: COLORS.red, fontSize: 9, lineHeight: 14 },
   groupTypeRow: { flexDirection: 'row', gap: 9 },
-  groupTypeCard: { flex: 1, minHeight: 116, padding: 12, borderWidth: 1, borderColor: '#DEDEE8', borderRadius: 17, backgroundColor: '#FAFAFD' },
+  groupTypeCard: { flex: 1, minHeight: 116, padding: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 17, backgroundColor: COLORS.input },
   groupTypeCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
-  groupTypeIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: '#F0F0F5' },
-  groupTypeIconActive: { backgroundColor: '#FFFFFF' },
+  groupTypeIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: COLORS.elevated },
+  groupTypeIconActive: { backgroundColor: COLORS.surface },
   groupTypeTitle: { marginTop: 9, color: COLORS.ink, fontSize: 10, fontWeight: '900' },
   groupTypeTitleActive: { color: COLORS.primary },
   groupTypeBody: { marginTop: 3, color: COLORS.muted, fontSize: 7, lineHeight: 11 },
-  inputLabel: { marginTop: 16, marginBottom: 7, color: '#6E6E79', fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
+  inputLabel: { marginTop: 16, marginBottom: 7, color: COLORS.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
   labelRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  inputShell: { minHeight: 51, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: '#DEDEE8', borderRadius: 15, backgroundColor: '#FAFAFD' },
+  inputShell: { minHeight: 51, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, backgroundColor: COLORS.input },
   input: { flex: 1, paddingVertical: 11, color: COLORS.ink, fontSize: 11 },
   inputCount: { color: COLORS.faint, fontSize: 7 },
   descriptionShell: { minHeight: 91, alignItems: 'flex-start' },
@@ -672,7 +655,7 @@ const styles = StyleSheet.create({
   codeHint: { marginTop: 6, color: COLORS.faint, fontSize: 8, textAlign: 'center' },
   colorRow: { flexDirection: 'row', gap: 10 },
   colorOption: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: COLORS.surface, borderRadius: 14 },
-  colorOptionActive: { borderColor: '#D9D9E3', transform: [{ scale: 1.08 }] },
+  colorOptionActive: { borderColor: COLORS.line, transform: [{ scale: 1.08 }] },
   colorHint: { marginTop: 7, color: COLORS.faint, fontSize: 8 },
   submitButton: { minHeight: 52, marginTop: 21, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 16, backgroundColor: COLORS.primary },
   submitButtonDisabled: { opacity: 0.65 },
