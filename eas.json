@@ -12,7 +12,8 @@
     "preview": {
       "distribution": "internal",
       "environment": "preview",
-      "channel": "preview"
+      "channel": "preview",
+      "autoIncrement": true
     },
     "preview-phone": {
       "distribution": "internal",
@@ -23,7 +24,8 @@
       "env": {
         "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a"
       },
-      "channel": "preview"
+      "channel": "preview",
+      "autoIncrement": true
     },
     "production": {
       "autoIncrement": true,

@@ -1,6 +1,7 @@
 import Stack from 'expo-router/stack';
 import { StatusBar } from 'expo-status-bar';
 
+import { MajorUpdateGate } from '../components/MajorUpdateGate';
 import { PlanadoAlertProvider } from '../components/PlanadoAlert';
 import { WidgetSync } from '../components/WidgetSync';
 import { AuthProvider } from '../context/AuthContext';
@@ -31,6 +32,7 @@ function ThemedRootLayout() {
             headerShown: false,
           }}
         />
+        <MajorUpdateGate />
       </PlanadoAlertProvider>
     </AuthProvider>
   );
