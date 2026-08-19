@@ -406,6 +406,9 @@ export default function CalendarScreen() {
                     <View style={styles.eventCopy}>
                       <View style={styles.eventTitleRow}>
                         <Text numberOfLines={1} style={styles.eventTitle}>{event.title}</Text>
+                        {event.is_important ? (
+                          <Ionicons color={COLORS.orange} name="star" size={12} />
+                        ) : null}
                         {event.visibility === 'private' ? (
                           <Ionicons color={COLORS.faint} name="lock-closed" size={12} />
                         ) : null}

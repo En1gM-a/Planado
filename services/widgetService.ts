@@ -20,6 +20,24 @@ type PlanadoWidgetNativeModule = {
     snapshotDate: string,
     scheduleJson: string,
   ): Promise<boolean>;
+  saveGroupAndPinWidgetV2?(
+    groupId: string,
+    groupName: string,
+    todayText: string,
+    tomorrowText: string,
+    snapshotDate: string,
+    scheduleJson: string,
+    importantJson: string,
+  ): Promise<boolean>;
+  saveGroupWidgetDataV2?(
+    groupId: string,
+    groupName: string,
+    todayText: string,
+    tomorrowText: string,
+    snapshotDate: string,
+    scheduleJson: string,
+    importantJson: string,
+  ): Promise<boolean>;
 };
 
 const nativeWidget = NativeModules.PlanadoWidget as PlanadoWidgetNativeModule | undefined;
@@ -78,6 +96,11 @@ async function widgetSnapshot(groupId: string) {
     tomorrowText,
     snapshotDate: localDateKey(),
     scheduleJson: JSON.stringify(datedSchedule),
+    importantJson: JSON.stringify(schedule.important.map((event) => ({
+      title: event.title,
+      startMs: new Date(event.start_time).getTime(),
+      endMs: new Date(event.end_time).getTime(),
+    }))),
   };
 }
 
@@ -100,14 +123,24 @@ export async function makeGroupWidget(groupId: string, groupName: string) {
 
   const snapshot = await widgetSnapshot(groupId);
 
-  const pinRequested = await nativeWidget.saveGroupAndPinWidget(
-    groupId,
-    groupName,
-    snapshot.todayText,
-    snapshot.tomorrowText,
-    snapshot.snapshotDate,
-    snapshot.scheduleJson,
-  );
+  const pinRequested = nativeWidget.saveGroupAndPinWidgetV2
+    ? await nativeWidget.saveGroupAndPinWidgetV2(
+        groupId,
+        groupName,
+        snapshot.todayText,
+        snapshot.tomorrowText,
+        snapshot.snapshotDate,
+        snapshot.scheduleJson,
+        snapshot.importantJson,
+      )
+    : await nativeWidget.saveGroupAndPinWidget(
+        groupId,
+        groupName,
+        snapshot.todayText,
+        snapshot.tomorrowText,
+        snapshot.snapshotDate,
+        snapshot.scheduleJson,
+      );
 
   await AsyncStorage.setItem(WIDGET_SELECTION_KEY, JSON.stringify({ groupId, groupName }));
 
@@ -119,14 +152,26 @@ export async function refreshSelectedWidget() {
   const selection = await selectedWidget();
   if (!selection) return false;
   const snapshot = await widgetSnapshot(selection.groupId);
-  await nativeWidget.saveGroupWidgetData(
-    selection.groupId,
-    selection.groupName,
-    snapshot.todayText,
-    snapshot.tomorrowText,
-    snapshot.snapshotDate,
-    snapshot.scheduleJson,
-  );
+  if (nativeWidget.saveGroupWidgetDataV2) {
+    await nativeWidget.saveGroupWidgetDataV2(
+      selection.groupId,
+      selection.groupName,
+      snapshot.todayText,
+      snapshot.tomorrowText,
+      snapshot.snapshotDate,
+      snapshot.scheduleJson,
+      snapshot.importantJson,
+    );
+  } else {
+    await nativeWidget.saveGroupWidgetData(
+      selection.groupId,
+      selection.groupName,
+      snapshot.todayText,
+      snapshot.tomorrowText,
+      snapshot.snapshotDate,
+      snapshot.scheduleJson,
+    );
+  }
   return true;
 }
 
@@ -134,5 +179,13 @@ export async function refreshGroupWidgetIfSelected(groupId: string) {
   if (Platform.OS !== 'android' || !nativeWidget) return false;
   const selection = await selectedWidget();
   if (!selection || selection.groupId !== groupId) return false;
+  return refreshSelectedWidget();
+}
+
+export async function syncSelectedWidgetGroupName(groupId: string, groupName: string) {
+  if (Platform.OS !== 'android' || !nativeWidget) return false;
+  const selection = await selectedWidget();
+  if (!selection || selection.groupId !== groupId) return false;
+  await AsyncStorage.setItem(WIDGET_SELECTION_KEY, JSON.stringify({ groupId, groupName }));
   return refreshSelectedWidget();
 }

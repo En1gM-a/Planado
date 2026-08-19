@@ -68,6 +68,17 @@ export type GroupWidgetEvent = {
   start_time: string;
   end_time: string;
   is_all_day: boolean;
+  is_important: boolean;
+};
+
+export type EditableGroup = {
+  id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  timezone: string;
+  group_type: GroupType;
+  role: GroupRole;
 };
 
 function firstRelated<T>(value: T | T[] | null | undefined): T | null {
@@ -270,6 +281,7 @@ export async function getGroupDetails(groupId: string): Promise<GroupDetails> {
 export async function getGroupWidgetEvents(groupId: string): Promise<{
   today: GroupWidgetEvent[];
   tomorrow: GroupWidgetEvent[];
+  important: GroupWidgetEvent[];
   days: Record<string, GroupWidgetEvent[]>;
   groupType: GroupType;
 }> {
@@ -285,7 +297,8 @@ export async function getGroupWidgetEvents(groupId: string): Promise<{
   const rangeEnd = new Date(todayStart);
   rangeEnd.setDate(todayStart.getDate() + 14);
 
-  const [groupResult, eventResult] = await Promise.all([
+  const eventFields = 'id, title, description, location, start_time, end_time, is_all_day, is_important';
+  const [groupResult, eventResult, importantResult] = await Promise.all([
     supabase
       .from('groups')
       .select('group_type')
@@ -293,17 +306,34 @@ export async function getGroupWidgetEvents(groupId: string): Promise<{
       .single(),
     supabase
       .from('events')
-      .select('id, title, description, location, start_time, end_time, is_all_day')
+      .select(eventFields)
       .eq('group_id', groupId)
       .eq('status', 'active')
       .lte('start_time', rangeEnd.toISOString())
       .gte('end_time', todayStart.toISOString())
       .order('start_time', { ascending: true }),
+    supabase
+      .from('events')
+      .select(eventFields)
+      .eq('group_id', groupId)
+      .eq('status', 'active')
+      .eq('is_important', true)
+      .gte('end_time', new Date().toISOString())
+      .order('start_time', { ascending: true })
+      .limit(20),
   ]);
 
   if (groupResult.error) throw groupResult.error;
   if (eventResult.error) throw eventResult.error;
-  const events = (eventResult.data ?? []) as GroupWidgetEvent[];
+  if (importantResult.error) throw importantResult.error;
+  const important = (importantResult.data ?? []) as GroupWidgetEvent[];
+  const eventsById = new Map<string, GroupWidgetEvent>();
+  for (const event of [...((eventResult.data ?? []) as GroupWidgetEvent[]), ...important]) {
+    eventsById.set(event.id, event);
+  }
+  const events = [...eventsById.values()].sort(
+    (left, right) => new Date(left.start_time).getTime() - new Date(right.start_time).getTime(),
+  );
   const touchesDay = (event: GroupWidgetEvent, start: Date, end: Date) =>
     new Date(event.start_time) < end && new Date(event.end_time) >= start;
   const dayKey = (date: Date) => {
@@ -323,9 +353,63 @@ export async function getGroupWidgetEvents(groupId: string): Promise<{
   return {
     today: events.filter((event) => touchesDay(event, todayStart, tomorrowStart)),
     tomorrow: events.filter((event) => touchesDay(event, tomorrowStart, tomorrowEnd)),
+    important,
     days,
     groupType: groupResult.data.group_type as GroupType,
   };
+}
+
+export async function getEditableGroup(groupId: string): Promise<EditableGroup> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('You must be signed in to edit a group.');
+
+  const [groupResult, membershipResult] = await Promise.all([
+    supabase
+      .from('groups')
+      .select('id, name, description, image_url, timezone, group_type')
+      .eq('id', groupId)
+      .single(),
+    supabase
+      .from('group_members')
+      .select('role')
+      .eq('group_id', groupId)
+      .eq('user_id', user.id)
+      .single(),
+  ]);
+
+  if (groupResult.error) throw groupResult.error;
+  if (membershipResult.error) throw membershipResult.error;
+  const role = membershipResult.data.role as GroupRole;
+  if (role !== 'owner' && role !== 'admin') {
+    throw new Error('Only the group creator or an admin can edit group details.');
+  }
+
+  return { ...groupResult.data, role } as EditableGroup;
+}
+
+export async function updateGroupDetails(
+  groupId: string,
+  input: { name: string; description?: string; timezone: string },
+) {
+  const name = input.name.trim();
+  const description = input.description?.trim() || null;
+  const timezone = input.timezone.trim();
+  if (!name) throw new Error('Group name is required.');
+  if (name.length > 80) throw new Error('Group name must be 80 characters or fewer.');
+  if (description && description.length > 500) {
+    throw new Error('Description must be 500 characters or fewer.');
+  }
+  if (!timezone || timezone.length > 100) throw new Error('Enter a valid timezone.');
+
+  const { data, error } = await supabase
+    .from('groups')
+    .update({ name, description, timezone })
+    .eq('id', groupId)
+    .select('id, name, description, image_url, timezone, group_type')
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 export async function createGroupInvite(groupId: string) {

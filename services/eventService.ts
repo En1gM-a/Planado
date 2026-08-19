@@ -33,6 +33,7 @@ export type CalendarEvent = {
   start_time: string;
   end_time: string;
   is_all_day: boolean;
+  is_important: boolean;
   color: string | null;
   visibility: 'group' | 'private';
   status: 'active' | 'cancelled';
@@ -50,6 +51,7 @@ export type CreateEventInput = {
   startTime: Date;
   endTime: Date;
   isAllDay: boolean;
+  isImportant: boolean;
   color: string;
   visibility: 'group' | 'private';
   retentionPolicy: 'permanent' | 'temporary';
@@ -92,7 +94,7 @@ export async function getCalendarEvents(
   const { data, error } = await supabase
     .from('events')
     .select(
-      'id, group_id, created_by, title, description, location, category, start_time, end_time, is_all_day, color, visibility, status, retention_policy, delete_after, groups(name)',
+      'id, group_id, created_by, title, description, location, category, start_time, end_time, is_all_day, is_important, color, visibility, status, retention_policy, delete_after, groups(name)',
     )
     .lte('start_time', rangeEnd.toISOString())
     .gte('end_time', rangeStart.toISOString())
@@ -113,6 +115,7 @@ export async function getCalendarEvents(
       start_time: event.start_time,
       end_time: event.end_time,
       is_all_day: event.is_all_day,
+      is_important: event.is_important,
       color: event.color,
       visibility: event.visibility as 'group' | 'private',
       status: event.status as 'active' | 'cancelled',
@@ -142,12 +145,13 @@ export async function createEvent(input: CreateEventInput): Promise<CalendarEven
       start_time: input.startTime.toISOString(),
       end_time: input.endTime.toISOString(),
       is_all_day: input.isAllDay,
+      is_important: input.isImportant,
       color: input.color,
       visibility: input.visibility,
       status: 'active',
       retention_policy: input.retentionPolicy,
     })
-    .select('id, group_id, created_by, title, description, location, category, start_time, end_time, is_all_day, color, visibility, status, retention_policy, delete_after, groups(name)')
+    .select('id, group_id, created_by, title, description, location, category, start_time, end_time, is_all_day, is_important, color, visibility, status, retention_policy, delete_after, groups(name)')
     .single();
 
   if (error) throw error;
@@ -168,6 +172,7 @@ export async function createEvent(input: CreateEventInput): Promise<CalendarEven
     start_time: data.start_time,
     end_time: data.end_time,
     is_all_day: data.is_all_day,
+    is_important: data.is_important,
     color: data.color,
     visibility: data.visibility as 'group' | 'private',
     status: data.status as 'active' | 'cancelled',
@@ -183,7 +188,7 @@ export async function getCalendarEventById(eventId: string): Promise<CalendarEve
 
   const { data, error } = await supabase
     .from('events')
-    .select('id, group_id, created_by, title, description, location, category, start_time, end_time, is_all_day, color, visibility, status, retention_policy, delete_after, groups(name)')
+    .select('id, group_id, created_by, title, description, location, category, start_time, end_time, is_all_day, is_important, color, visibility, status, retention_policy, delete_after, groups(name)')
     .eq('id', eventId)
     .single();
 
@@ -200,6 +205,7 @@ export async function getCalendarEventById(eventId: string): Promise<CalendarEve
     start_time: data.start_time,
     end_time: data.end_time,
     is_all_day: data.is_all_day,
+    is_important: data.is_important,
     color: data.color,
     visibility: data.visibility as 'group' | 'private',
     status: data.status as 'active' | 'cancelled',

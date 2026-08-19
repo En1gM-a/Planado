@@ -125,6 +125,7 @@ export default function CreateEventScreen() {
   const [startTime, setStartTime] = useState(timeInputValue(defaults.start));
   const [endTime, setEndTime] = useState(timeInputValue(defaults.end));
   const [allDay, setAllDay] = useState(false);
+  const [isImportant, setIsImportant] = useState(false);
   const [visibility, setVisibility] = useState<'group' | 'private'>('group');
   const [retention, setRetention] = useState<RetentionChoice>('permanent');
   const [openPicker, setOpenPicker] = useState<OpenPicker>(null);
@@ -187,6 +188,7 @@ export default function CreateEventScreen() {
         startTime: start,
         endTime: end,
         isAllDay: allDay,
+        isImportant,
         color,
         visibility,
         retentionPolicy: retention,
@@ -359,6 +361,25 @@ export default function CreateEventScreen() {
                   })}
                 </View>
 
+                <SectionTitle title="Priority" subtitle="Keep critical plans visible" />
+                <Pressable
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: isImportant }}
+                  onPress={() => setIsImportant((current) => !current)}
+                  style={[styles.importantCard, isImportant && styles.importantCardActive]}
+                >
+                  <View style={[styles.importantIcon, isImportant && styles.importantIconActive]}>
+                    <Ionicons color={isImportant ? '#FFFFFF' : COLORS.orange} name="star" size={21} />
+                  </View>
+                  <View style={styles.importantCopy}>
+                    <Text style={[styles.importantTitle, isImportant && styles.importantTitleActive]}>Important event</Text>
+                    <Text style={styles.importantBody}>Pins this event in the group widget with a days-left countdown until it ends.</Text>
+                  </View>
+                  <View style={[styles.switchTrack, isImportant && styles.importantSwitchTrack]}>
+                    <View style={[styles.switchThumb, isImportant && styles.switchThumbActive]} />
+                  </View>
+                </Pressable>
+
                 <SectionTitle title="Privacy and color" subtitle="Control what the group sees" />
                 <View style={styles.formCard}>
                   <View style={styles.visibilityRow}>
@@ -519,6 +540,15 @@ const styles = StyleSheet.create({
   categoryChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
   categoryText: { color: COLORS.muted, fontSize: 9, fontWeight: '800' },
   categoryTextActive: { color: COLORS.primary },
+  importantCard: { minHeight: 94, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.surface },
+  importantCardActive: { borderColor: COLORS.orange, backgroundColor: COLORS.orangeSoft },
+  importantIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: COLORS.orangeSoft },
+  importantIconActive: { backgroundColor: COLORS.orange },
+  importantCopy: { flex: 1 },
+  importantTitle: { color: COLORS.ink, fontSize: 11, fontWeight: '900' },
+  importantTitleActive: { color: COLORS.orange },
+  importantBody: { marginTop: 4, color: COLORS.muted, fontSize: 8, lineHeight: 12 },
+  importantSwitchTrack: { backgroundColor: COLORS.orange },
   visibilityRow: { flexDirection: 'row', gap: 9 },
   visibilityCard: { flex: 1, minHeight: 103, padding: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 17, backgroundColor: COLORS.input },
   visibilityCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },

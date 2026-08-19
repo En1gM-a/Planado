@@ -27,27 +27,27 @@ class PlanadoWidgetModule(
     promise: Promise
   ) {
     try {
-      saveWidgetData(groupId, groupName, todayText, tomorrowText, snapshotDate, scheduleJson)
+      saveWidgetData(groupId, groupName, todayText, tomorrowText, snapshotDate, scheduleJson, "[]")
+      promise.resolve(requestPinWidget())
+    } catch (error: Exception) {
+      promise.reject("PLANADO_WIDGET_ERROR", error.message, error)
+    }
+  }
 
-      var pinRequested = false
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val manager = AppWidgetManager.getInstance(reactContext)
-        if (manager.isRequestPinAppWidgetSupported) {
-          val provider = ComponentName(reactContext, PlanadoWidgetProvider::class.java)
-          val callbackIntent = Intent(reactContext, PlanadoWidgetProvider::class.java).apply {
-            action = PlanadoWidgetProvider.ACTION_WIDGET_PINNED
-          }
-          val callback = PendingIntent.getBroadcast(
-            reactContext,
-            0,
-            callbackIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-          )
-          pinRequested = manager.requestPinAppWidget(provider, null, callback)
-        }
-      }
-
-      promise.resolve(pinRequested)
+  @ReactMethod
+  fun saveGroupAndPinWidgetV2(
+    groupId: String,
+    groupName: String,
+    todayText: String,
+    tomorrowText: String,
+    snapshotDate: String,
+    scheduleJson: String,
+    importantJson: String,
+    promise: Promise
+  ) {
+    try {
+      saveWidgetData(groupId, groupName, todayText, tomorrowText, snapshotDate, scheduleJson, importantJson)
+      promise.resolve(requestPinWidget())
     } catch (error: Exception) {
       promise.reject("PLANADO_WIDGET_ERROR", error.message, error)
     }
@@ -64,11 +64,47 @@ class PlanadoWidgetModule(
     promise: Promise
   ) {
     try {
-      saveWidgetData(groupId, groupName, todayText, tomorrowText, snapshotDate, scheduleJson)
+      saveWidgetData(groupId, groupName, todayText, tomorrowText, snapshotDate, scheduleJson, "[]")
       promise.resolve(true)
     } catch (error: Exception) {
       promise.reject("PLANADO_WIDGET_ERROR", error.message, error)
     }
+  }
+
+  @ReactMethod
+  fun saveGroupWidgetDataV2(
+    groupId: String,
+    groupName: String,
+    todayText: String,
+    tomorrowText: String,
+    snapshotDate: String,
+    scheduleJson: String,
+    importantJson: String,
+    promise: Promise
+  ) {
+    try {
+      saveWidgetData(groupId, groupName, todayText, tomorrowText, snapshotDate, scheduleJson, importantJson)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("PLANADO_WIDGET_ERROR", error.message, error)
+    }
+  }
+
+  private fun requestPinWidget(): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+    val manager = AppWidgetManager.getInstance(reactContext)
+    if (!manager.isRequestPinAppWidgetSupported) return false
+    val provider = ComponentName(reactContext, PlanadoWidgetProvider::class.java)
+    val callbackIntent = Intent(reactContext, PlanadoWidgetProvider::class.java).apply {
+      action = PlanadoWidgetProvider.ACTION_WIDGET_PINNED
+    }
+    val callback = PendingIntent.getBroadcast(
+      reactContext,
+      0,
+      callbackIntent,
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    return manager.requestPinAppWidget(provider, null, callback)
   }
 
   private fun saveWidgetData(
@@ -77,7 +113,8 @@ class PlanadoWidgetModule(
     todayText: String,
     tomorrowText: String,
     snapshotDate: String,
-    scheduleJson: String
+    scheduleJson: String,
+    importantJson: String
   ) {
     reactContext
       .getSharedPreferences(PlanadoWidgetProvider.PREFS_NAME, 0)
@@ -88,6 +125,7 @@ class PlanadoWidgetModule(
       .putString(PlanadoWidgetProvider.KEY_TOMORROW, tomorrowText)
       .putString(PlanadoWidgetProvider.KEY_SNAPSHOT_DATE, snapshotDate)
       .putString(PlanadoWidgetProvider.KEY_SCHEDULE_JSON, scheduleJson)
+      .putString(PlanadoWidgetProvider.KEY_IMPORTANT_JSON, importantJson)
       .apply()
 
     PlanadoWidgetProvider.updateAllWidgets(reactContext)

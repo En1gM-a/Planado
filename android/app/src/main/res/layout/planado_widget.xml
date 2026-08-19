@@ -27,6 +27,35 @@
     android:textSize="18sp"
     android:textStyle="bold" />
 
+  <LinearLayout
+    android:id="@+id/widget_important_section"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:orientation="vertical"
+    android:visibility="gone">
+
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="IMPORTANT"
+      android:textColor="#FFD477"
+      android:textSize="9sp"
+      android:textStyle="bold" />
+
+    <TextView
+      android:id="@+id/widget_important_events"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:ellipsize="end"
+      android:maxLines="3"
+      android:text="★ Important event · 3 days left"
+      android:textColor="#FFF2CE"
+      android:textSize="11sp"
+      android:textStyle="bold" />
+  </LinearLayout>
+
   <TextView
     android:id="@+id/widget_today_label"
     android:layout_width="wrap_content"

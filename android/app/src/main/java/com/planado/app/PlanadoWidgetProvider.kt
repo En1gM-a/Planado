@@ -12,6 +12,8 @@ import android.widget.RemoteViews
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import java.util.concurrent.TimeUnit
+import org.json.JSONArray
 import org.json.JSONObject
 
 class PlanadoWidgetProvider : AppWidgetProvider() {
@@ -34,6 +36,7 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
     const val KEY_TOMORROW = "tomorrow_events"
     const val KEY_SNAPSHOT_DATE = "snapshot_date"
     const val KEY_SCHEDULE_JSON = "schedule_json"
+    const val KEY_IMPORTANT_JSON = "important_json"
     const val ACTION_WIDGET_PINNED = "com.planado.app.WIDGET_PINNED"
 
     fun updateAllWidgets(context: Context) {
@@ -53,6 +56,7 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
       val savedTomorrow = preferences.getString(KEY_TOMORROW, "").orEmpty()
       val snapshotDate = preferences.getString(KEY_SNAPSHOT_DATE, "").orEmpty()
       val scheduleJson = preferences.getString(KEY_SCHEDULE_JSON, "{}").orEmpty()
+      val importantJson = preferences.getString(KEY_IMPORTANT_JSON, "[]").orEmpty()
 
       val todayDate = Calendar.getInstance()
       val tomorrowDate = (todayDate.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
@@ -75,9 +79,12 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
       val tomorrow = cachedTomorrow ?: legacyTomorrow
       val todayLabel = "TODAY · ${labelFormatter.format(todayDate.time).uppercase(Locale.getDefault())}"
       val tomorrowLabel = "TOMORROW · ${labelFormatter.format(tomorrowDate.time).uppercase(Locale.getDefault())}"
+      val important = importantText(importantJson, System.currentTimeMillis())
 
       return RemoteViews(context.packageName, R.layout.planado_widget).apply {
         setTextViewText(R.id.widget_group_name, groupName)
+        setTextViewText(R.id.widget_important_events, important)
+        setViewVisibility(R.id.widget_important_section, if (important.isBlank()) View.GONE else View.VISIBLE)
         setTextViewText(R.id.widget_today_label, todayLabel)
         setTextViewText(R.id.widget_today_events, today)
         setTextViewText(R.id.widget_tomorrow_label, tomorrowLabel)
@@ -96,6 +103,48 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
         )
         setOnClickPendingIntent(R.id.widget_root, pendingIntent)
       }
+    }
+
+    private fun importantText(json: String, nowMs: Long): String {
+      val items = try { JSONArray(json) } catch (_: Exception) { JSONArray() }
+      val today = Calendar.getInstance().apply {
+        timeInMillis = nowMs
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+      }
+      val lines = mutableListOf<String>()
+
+      for (index in 0 until items.length()) {
+        val item = items.optJSONObject(index) ?: continue
+        val title = item.optString("title").replace('\n', ' ').trim().take(52)
+        val startMs = item.optLong("startMs", 0L)
+        val endMs = item.optLong("endMs", 0L)
+        if (title.isBlank() || startMs <= 0L || endMs < nowMs) continue
+
+        val countdown = if (startMs <= nowMs) {
+          "Happening now"
+        } else {
+          val eventDay = Calendar.getInstance().apply {
+            timeInMillis = startMs
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+          }
+          val days = TimeUnit.MILLISECONDS.toDays(eventDay.timeInMillis - today.timeInMillis).toInt()
+          when {
+            days <= 0 -> "Today"
+            days == 1 -> "1 day left"
+            else -> "$days days left"
+          }
+        }
+
+        lines.add("★ $title · $countdown")
+        if (lines.size == 3) break
+      }
+      return lines.joinToString("\n")
     }
   }
 }

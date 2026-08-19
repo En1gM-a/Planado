@@ -38,6 +38,7 @@ type Event = {
   start_time: string;
   end_time: string;
   is_all_day: boolean;
+  is_important: boolean;
   color: string | null;
   location: string | null;
   group_name: string;
@@ -103,7 +104,7 @@ export default function HomeScreen() {
             .limit(8),
           supabase
             .from('events')
-            .select('id, title, start_time, end_time, is_all_day, color, location, groups(name)')
+            .select('id, title, start_time, end_time, is_all_day, is_important, color, location, groups(name)')
             .eq('status', 'active')
             .gte('end_time', new Date().toISOString())
             .order('start_time', { ascending: true })
@@ -135,6 +136,7 @@ export default function HomeScreen() {
           start_time: event.start_time,
           end_time: event.end_time,
           is_all_day: event.is_all_day,
+          is_important: event.is_important,
           color: event.color,
           location: event.location,
           group_name: related?.name ?? 'Personal plan',
@@ -324,7 +326,10 @@ export default function HomeScreen() {
                     <Text style={styles.eventTime}>{formatEventTime(event)}</Text>
                   </View>
                   <View style={styles.eventContent}>
-                    <Text numberOfLines={1} style={styles.eventTitle}>{event.title}</Text>
+                    <View style={styles.eventTitleRow}>
+                      <Text numberOfLines={1} style={styles.eventTitle}>{event.title}</Text>
+                      {event.is_important ? <Ionicons color={COLORS.orange} name="star" size={12} /> : null}
+                    </View>
                     <Text numberOfLines={1} style={styles.eventMeta}>
                       {event.group_name}{event.location ? `  ·  ${event.location}` : ''}
                     </Text>
@@ -457,7 +462,8 @@ const styles = StyleSheet.create({
   eventDay: { color: COLORS.primary, fontSize: 8, fontWeight: '900', letterSpacing: 0.7 },
   eventTime: { marginTop: 4, color: COLORS.ink, fontSize: 11, fontWeight: '800' },
   eventContent: { flex: 1, paddingVertical: 14 },
-  eventTitle: { color: COLORS.ink, fontSize: 13, fontWeight: '800' },
+  eventTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  eventTitle: { flexShrink: 1, color: COLORS.ink, fontSize: 13, fontWeight: '800' },
   eventMeta: { marginTop: 5, color: COLORS.muted, fontSize: 9 },
   chevron: { paddingHorizontal: 16, color: COLORS.faint, fontSize: 25, fontWeight: '300' },
   emptyCard: { minHeight: 134, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 17, borderWidth: 1, borderColor: COLORS.line, borderRadius: 23, backgroundColor: COLORS.surface },

@@ -152,7 +152,10 @@ export default function GroupDetailScreen() {
 
   function openGroupMenu() {
     const options: { text: string; style?: 'default' | 'cancel' | 'destructive'; onPress?: () => void }[] = [];
-    if (canManageInvites) options.push({ text: 'Invite members', onPress: () => setInviteOpen(true) });
+    if (canManageInvites) {
+      options.push({ text: 'Edit group', onPress: () => router.push({ pathname: '/group/settings', params: { groupId } } as Href) });
+      options.push({ text: 'Invite members', onPress: () => setInviteOpen(true) });
+    }
     options.push({ text: 'View calendar', onPress: () => router.push('/(tabs)/calendar' as Href) });
     if (myRole === 'owner') options.push({ text: 'Delete group', style: 'destructive', onPress: confirmDelete });
     else options.push({ text: 'Leave group', style: 'destructive', onPress: confirmLeave });
@@ -394,7 +397,7 @@ export default function GroupDetailScreen() {
                 <Text style={styles.widgetTitle}>Make widget</Text>
                 <View style={styles.androidBadge}><Ionicons color={COLORS.green} name="logo-android" size={11} /><Text style={styles.androidBadgeText}>ANDROID</Text></View>
               </View>
-              <Text style={styles.widgetBody}>Show this group’s events for today and tomorrow on your home screen.</Text>
+              <Text style={styles.widgetBody}>Show today, tomorrow, and important-event countdowns on your home screen.</Text>
             </View>
             <Ionicons color={COLORS.faint} name="chevron-forward" size={18} />
           </Pressable>
@@ -510,10 +513,26 @@ export default function GroupDetailScreen() {
             </View>
           </View>
 
+          {canManageInvites ? (
+            <Pressable
+              onPress={() => router.push({ pathname: '/group/settings', params: { groupId } } as Href)}
+              style={({ pressed }) => [styles.editGroupCard, pressed && styles.pressed]}
+            >
+              <View style={styles.editGroupIcon}>
+                <Ionicons color={COLORS.primary} name="create-outline" size={20} />
+              </View>
+              <View style={styles.editGroupCopy}>
+                <Text style={styles.editGroupTitle}>Edit group details</Text>
+                <Text style={styles.editGroupBody}>Change the name, description, and timezone.</Text>
+              </View>
+              <Ionicons color={COLORS.faint} name="chevron-forward" size={18} />
+            </Pressable>
+          ) : null}
+
           <View style={styles.permissionsCard}>
-            <PermissionRow icon="star-outline" title="Creator" description="Delete group, manage admins, remove members" color={COLORS.primary} background={COLORS.primarySoft} />
+            <PermissionRow icon="star-outline" title="Creator" description="Edit or delete group, manage admins, remove members" color={COLORS.primary} background={COLORS.primarySoft} />
             <View style={styles.permissionSeparator} />
-            <PermissionRow icon="shield-checkmark-outline" title="Admin" description="Create invites and remove regular members" color={COLORS.orange} background={COLORS.orangeSoft} />
+            <PermissionRow icon="shield-checkmark-outline" title="Admin" description="Edit group, create invites, and remove regular members" color={COLORS.orange} background={COLORS.orangeSoft} />
             <View style={styles.permissionSeparator} />
             <PermissionRow icon="person-outline" title="Member" description="View plans, participate, and leave voluntarily" color={COLORS.green} background={COLORS.greenSoft} />
           </View>
@@ -718,6 +737,11 @@ const styles = StyleSheet.create({
   widgetTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   widgetTitle: { color: COLORS.ink, fontSize: 11, fontWeight: '900' },
   widgetBody: { marginTop: 4, color: COLORS.muted, fontSize: 8, lineHeight: 12 },
+  editGroupCard: { minHeight: 72, marginBottom: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.surface },
+  editGroupIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: COLORS.primarySoft },
+  editGroupCopy: { flex: 1 },
+  editGroupTitle: { color: COLORS.ink, fontSize: 10, fontWeight: '900' },
+  editGroupBody: { marginTop: 3, color: COLORS.muted, fontSize: 8 },
   androidBadge: { paddingVertical: 3, paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 8, backgroundColor: COLORS.greenSoft },
   androidBadgeText: { color: COLORS.green, fontSize: 6, fontWeight: '900', letterSpacing: 0.4 },
   citConnectionCard: { marginTop: 10, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.elevated },
