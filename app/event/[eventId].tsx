@@ -1,13 +1,21 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, Redirect, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PlanadoLoader } from '../../components/PlanadoLoader';
+import { Button } from '../../components/ui/Button';
+import { TopBar } from '../../components/ui/Headers';
+import { IconButton } from '../../components/ui/IconButton';
+import { PressableScale } from '../../components/ui/PressableScale';
+import { Reveal } from '../../components/ui/Reveal';
 import { useAuth } from '../../hooks/useAuth';
 import { getCalendarEventById, type CalendarEvent } from '../../services/eventService';
 import { COLORS } from '../../theme/colors';
+import { gradientStyle, PAGE, RADIUS, SHADOW, tint, TYPE } from '../../theme/tokens';
+
+const HERO_SHEEN = 'radial-gradient(circle at 92% 0%, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 50%), linear-gradient(180deg, rgba(10, 10, 30, 0) 20%, rgba(10, 10, 30, 0.34) 100%)';
 
 function formatRange(event: CalendarEvent) {
   const start = new Date(event.start_time);
@@ -78,95 +86,234 @@ export default function EventDetailScreen() {
 
   if (!event) return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.center}>
-        <View style={styles.errorIcon}><Ionicons color={COLORS.red} name="calendar-clear-outline" size={30} /></View>
-        <Text style={styles.errorTitle}>Event unavailable</Text>
+      <Reveal style={styles.center}>
+        <View style={styles.errorIcon}><Ionicons color={COLORS.red} name="calendar-clear-outline" size={32} /></View>
+        <Text accessibilityRole="header" style={styles.errorTitle}>Event unavailable</Text>
         <Text style={styles.centerText}>{error ?? 'It may have been removed or you may not have access.'}</Text>
-        <Pressable onPress={() => router.replace('/(tabs)/calendar' as Href)} style={styles.primaryButton}><Text style={styles.primaryButtonText}>Back to calendar</Text></Pressable>
-      </View>
+        <Button
+          icon="calendar-outline"
+          label="Back to calendar"
+          onPress={() => router.replace('/(tabs)/calendar' as Href)}
+          size="md"
+          style={styles.centerButton}
+        />
+      </Reveal>
     </SafeAreaView>
   );
 
   const accent = event.color ?? COLORS.primary;
+  const accentHex = event.color ?? '#5B5CE2';
+  const accentSoft = tint(accentHex, 0.14);
+
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.page}>
-          <View style={styles.header}>
-            <Pressable onPress={() => router.back()} style={styles.headerButton}><Ionicons color={COLORS.ink} name="arrow-back" size={21} /></Pressable>
-            <Text style={styles.headerTitle}>Event details</Text>
-            <Pressable onPress={() => router.push('/(tabs)/calendar' as Href)} style={styles.headerButton}><Ionicons color={COLORS.primary} name="calendar-outline" size={20} /></Pressable>
-          </View>
+          <TopBar
+            onBack={() => router.back()}
+            right={(
+              <IconButton
+                color={COLORS.primary}
+                icon="calendar-outline"
+                label="Open calendar"
+                onPress={() => router.push('/(tabs)/calendar' as Href)}
+              />
+            )}
+            title="Event details"
+          />
 
-          <View style={[styles.hero, { backgroundColor: accent }]}>
-            <View style={styles.heroGlow} />
+          <Reveal style={[styles.hero, gradientStyle(HERO_SHEEN, accent)]}>
             <View style={styles.heroIcon}><Ionicons color={accent} name="calendar" size={28} /></View>
-            {event.is_important ? (
-              <View style={styles.importantBadge}>
-                <Ionicons color="#FFF2CE" name="star" size={12} />
-                <Text style={styles.importantBadgeText}>{importantDescription(event).toUpperCase()}</Text>
-              </View>
-            ) : null}
-            {completed ? (
-              <View style={styles.completedBadge}>
-                <Ionicons color="#FFFFFF" name="checkmark-circle" size={13} />
-                <Text style={styles.completedBadgeText}>COMPLETED</Text>
-              </View>
-            ) : null}
-            <Text style={styles.category}>{event.category.toUpperCase()}</Text>
-            <Text style={styles.title}>{event.title}</Text>
+            <Text style={styles.category}>{event.category}</Text>
+            <Text accessibilityRole="header" style={styles.title}>{event.title}</Text>
             <Text style={styles.heroMeta}>{event.group_name}</Text>
-          </View>
+            {event.is_important || completed ? (
+              <View style={styles.badgeRow}>
+                {event.is_important ? (
+                  <View style={styles.heroBadge}>
+                    <Ionicons color="#FFE3A8" name="star" size={14} />
+                    <Text numberOfLines={1} style={styles.heroBadgeText}>{importantDescription(event)}</Text>
+                  </View>
+                ) : null}
+                {completed ? (
+                  <View style={styles.heroBadge}>
+                    <Ionicons color="#FFFFFF" name="checkmark-circle" size={14} />
+                    <Text numberOfLines={1} style={styles.heroBadgeText}>Completed</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+          </Reveal>
 
-          <View style={styles.detailCard}>
-            <DetailRow icon="time-outline" label="WHEN" value={formatRange(event)} color={accent} />
+          <Reveal index={1} style={styles.detailCard}>
+            <DetailRow background={accentSoft} color={accent} icon="time-outline" label="When" value={formatRange(event)} />
             <View style={styles.separator} />
-            <DetailRow icon="people-outline" label="GROUP" value={event.group_name} color={accent} />
+            <DetailRow background={accentSoft} color={accent} icon="people-outline" label="Group" value={event.group_name} />
             <View style={styles.separator} />
-            <DetailRow icon="location-outline" label="LOCATION" value={event.location || 'No location added'} color={accent} />
+            <DetailRow background={accentSoft} color={accent} icon="location-outline" label="Location" value={event.location || 'No location added'} />
             <View style={styles.separator} />
-            <DetailRow icon={event.visibility === 'private' ? 'lock-closed-outline' : 'globe-outline'} label="VISIBILITY" value={event.visibility === 'private' ? 'Only visible to you' : 'Visible to group members'} color={accent} />
+            <DetailRow
+              background={accentSoft}
+              color={accent}
+              icon={event.visibility === 'private' ? 'lock-closed-outline' : 'globe-outline'}
+              label="Visibility"
+              value={event.visibility === 'private' ? 'Only visible to you' : 'Visible to group members'}
+            />
             <View style={styles.separator} />
-            <DetailRow icon={event.retention_policy === 'permanent' ? 'archive-outline' : 'timer-outline'} label="RETENTION" value={retentionDescription(event)} color={accent} />
+            <DetailRow
+              background={accentSoft}
+              color={accent}
+              icon={event.retention_policy === 'permanent' ? 'archive-outline' : 'timer-outline'}
+              label="Retention"
+              value={retentionDescription(event)}
+            />
             {event.is_important ? (
               <>
                 <View style={styles.separator} />
-                <DetailRow icon="star-outline" label="PRIORITY" value="Pinned in this group's widget until it ends" color={COLORS.orange} />
+                <DetailRow
+                  background={COLORS.orangeSoft}
+                  color={COLORS.orange}
+                  icon="star-outline"
+                  label="Priority"
+                  value="Pinned in this group's widget until it ends"
+                />
               </>
             ) : null}
-          </View>
+          </Reveal>
 
-          <Text style={styles.sectionTitle}>About this event</Text>
-          <View style={styles.descriptionCard}>
-            <Text style={event.description ? styles.description : styles.descriptionEmpty}>{event.description || 'No additional notes were added.'}</Text>
-          </View>
+          <Reveal index={2}>
+            <Text accessibilityRole="header" style={styles.sectionTitle}>About this event</Text>
+            <View style={styles.descriptionCard}>
+              <Text style={event.description ? styles.description : styles.descriptionEmpty}>
+                {event.description || 'No additional notes were added.'}
+              </Text>
+            </View>
+          </Reveal>
 
-          <Pressable onPress={() => router.push(`/group/${event.group_id}` as Href)} style={styles.groupButton}>
-            <Ionicons color={COLORS.primary} name="people-circle-outline" size={22} />
-            <View style={styles.groupButtonCopy}><Text style={styles.groupButtonTitle}>Open {event.group_name}</Text><Text style={styles.groupButtonBody}>View members and upcoming plans</Text></View>
-            <Ionicons color={COLORS.faint} name="chevron-forward" size={18} />
-          </Pressable>
+          <Reveal index={3}>
+            <PressableScale
+              accessibilityLabel={`Open ${event.group_name}`}
+              onPress={() => router.push(`/group/${event.group_id}` as Href)}
+              scaleTo={0.98}
+              style={styles.groupButton}
+            >
+              <View style={styles.groupButtonIcon}>
+                <Ionicons color={COLORS.primary} name="people" size={21} />
+              </View>
+              <View style={styles.groupButtonCopy}>
+                <Text numberOfLines={1} style={styles.groupButtonTitle}>Open {event.group_name}</Text>
+                <Text style={styles.groupButtonBody}>View members and upcoming plans</Text>
+              </View>
+              <Ionicons color={COLORS.faint} name="chevron-forward" size={18} />
+            </PressableScale>
+          </Reveal>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function DetailRow({ icon, label, value, color }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; color: string }) {
-  return <View style={styles.detailRow}><View style={[styles.detailIcon, { backgroundColor: `${color}18` }]}><Ionicons color={color} name={icon} size={19} /></View><View style={styles.detailCopy}><Text style={styles.detailLabel}>{label}</Text><Text style={styles.detailValue}>{value}</Text></View></View>;
+function DetailRow({
+  background,
+  color,
+  icon,
+  label,
+  value,
+}: {
+  background: string;
+  color: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View accessibilityLabel={`${label}: ${value}`} style={styles.detailRow}>
+      <View style={[styles.detailIcon, { backgroundColor: background }]}>
+        <Ionicons color={color} name={icon} size={19} />
+      </View>
+      <View style={styles.detailCopy}>
+        <Text style={styles.detailLabel}>{label}</Text>
+        <Text style={styles.detailValue}>{value}</Text>
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background }, scrollContent: { paddingBottom: 40 }, page: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 18 },
-  center: { flex: 1, padding: 28, alignItems: 'center', justifyContent: 'center', gap: 10 }, centerText: { maxWidth: 340, color: COLORS.muted, fontSize: 10, lineHeight: 16, textAlign: 'center' },
-  errorIcon: { width: 70, height: 70, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: COLORS.redSoft }, errorTitle: { color: COLORS.ink, fontSize: 18, fontWeight: '900' },
-  primaryButton: { minHeight: 44, marginTop: 8, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: COLORS.primary }, primaryButtonText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
-  header: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 10 }, headerButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, backgroundColor: COLORS.surface }, headerTitle: { flex: 1, color: COLORS.ink, fontSize: 15, fontWeight: '900', textAlign: 'center' },
-  hero: { minHeight: 235, padding: 22, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderRadius: 27 }, heroGlow: { position: 'absolute', width: 210, height: 210, top: -125, right: -55, borderRadius: 105, backgroundColor: 'rgba(255,255,255,0.16)' }, heroIcon: { width: 70, height: 70, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: '#FFFFFF' }, category: { marginTop: 14, color: 'rgba(255,255,255,0.74)', fontSize: 8, fontWeight: '900', letterSpacing: 1 }, title: { maxWidth: 500, marginTop: 5, color: '#FFFFFF', fontSize: 23, fontWeight: '900', textAlign: 'center' }, heroMeta: { marginTop: 8, color: 'rgba(255,255,255,0.84)', fontSize: 10 },
-  completedBadge: { marginTop: 12, minHeight: 27, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.34)', borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.17)' }, completedBadgeText: { color: '#FFFFFF', fontSize: 7, fontWeight: '900', letterSpacing: 0.7 },
-  importantBadge: { marginTop: 12, minHeight: 28, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: 'rgba(255,242,206,0.55)', borderRadius: 10, backgroundColor: 'rgba(79,55,8,0.28)' },
-  importantBadgeText: { color: '#FFF2CE', fontSize: 7, fontWeight: '900', letterSpacing: 0.55 },
-  detailCard: { marginTop: 12, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.line, borderRadius: 22, backgroundColor: COLORS.surface }, detailRow: { minHeight: 72, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 11 }, detailIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 13 }, detailCopy: { flex: 1 }, detailLabel: { color: COLORS.faint, fontSize: 7, fontWeight: '900', letterSpacing: 0.7 }, detailValue: { marginTop: 4, color: COLORS.ink, fontSize: 10, fontWeight: '800' }, separator: { height: 1, marginLeft: 65, backgroundColor: COLORS.line },
-  sectionTitle: { marginTop: 24, marginBottom: 10, color: COLORS.ink, fontSize: 17, fontWeight: '900' }, descriptionCard: { minHeight: 92, padding: 16, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.surface }, description: { color: COLORS.muted, fontSize: 10, lineHeight: 17 }, descriptionEmpty: { color: COLORS.faint, fontSize: 10, fontStyle: 'italic' },
-  groupButton: { minHeight: 72, marginTop: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.surface }, groupButtonCopy: { flex: 1 }, groupButtonTitle: { color: COLORS.ink, fontSize: 10, fontWeight: '900' }, groupButtonBody: { marginTop: 3, color: COLORS.muted, fontSize: 8 },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
+  scrollContent: { paddingBottom: 40 },
+  page: { width: '100%', maxWidth: PAGE.maxWidth, alignSelf: 'center', paddingHorizontal: PAGE.gutter },
+  center: { flex: 1, padding: 28, alignItems: 'center', justifyContent: 'center' },
+  centerText: { width: '100%', ...TYPE.body, maxWidth: 340, marginTop: 8, color: COLORS.muted, textAlign: 'center' },
+  centerButton: { marginTop: 22 },
+  errorIcon: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.xl, backgroundColor: COLORS.redSoft },
+  errorTitle: { width: '100%', ...TYPE.title3, marginTop: 18, color: COLORS.ink, textAlign: 'center' },
+  hero: {
+    minHeight: 236,
+    marginTop: 4,
+    padding: 22,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.xxl,
+    boxShadow: SHADOW.md,
+  },
+  heroIcon: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.lg, backgroundColor: '#FFFFFF' },
+  category: { width: '100%', ...TYPE.overline, marginTop: 14, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
+  title: { width: '100%', ...TYPE.title1, maxWidth: 500, marginTop: 4, color: '#FFFFFF', textAlign: 'center' },
+  heroMeta: { width: '100%', ...TYPE.callout, marginTop: 6, color: 'rgba(255,255,255,0.92)', textAlign: 'center' },
+  badgeRow: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
+  heroBadge: {
+    minHeight: 30,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    borderRadius: RADIUS.pill,
+    backgroundColor: 'rgba(10,10,30,0.24)',
+  },
+  heroBadgeText: { ...TYPE.footnote, color: '#FFFFFF', fontWeight: '700' },
+  detailCard: {
+    marginTop: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
+  },
+  detailRow: { minHeight: 74, paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  detailIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.sm },
+  detailCopy: { flex: 1 },
+  detailLabel: { ...TYPE.footnote, color: COLORS.muted, fontWeight: '600' },
+  detailValue: { ...TYPE.bodyStrong, marginTop: 2, color: COLORS.ink },
+  separator: { height: 1, marginLeft: 72, backgroundColor: COLORS.line },
+  sectionTitle: { ...TYPE.title3, marginTop: 28, marginBottom: 12, color: COLORS.ink },
+  descriptionCard: {
+    minHeight: 92,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surface,
+  },
+  description: { ...TYPE.body, color: COLORS.ink },
+  descriptionEmpty: { ...TYPE.body, color: COLORS.muted, fontStyle: 'italic' },
+  groupButton: {
+    minHeight: 76,
+    marginTop: 14,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surface,
+  },
+  groupButtonIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.sm, backgroundColor: COLORS.primarySoft },
+  groupButtonCopy: { flex: 1 },
+  groupButtonTitle: { ...TYPE.headline, color: COLORS.ink },
+  groupButtonBody: { ...TYPE.subhead, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
 });

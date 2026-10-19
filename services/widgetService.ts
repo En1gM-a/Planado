@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeModules, Platform } from 'react-native';
 
-import { getGroupWidgetEvents } from './groupService';
+import { getGroupWidgetEvents, type GroupWidgetEvent } from './groupService';
 
 type PlanadoWidgetNativeModule = {
   saveGroupAndPinWidget(
@@ -38,12 +38,38 @@ type PlanadoWidgetNativeModule = {
     scheduleJson: string,
     importantJson: string,
   ): Promise<boolean>;
+  // V3 (native widget redesign): structured rows plus the group's accent color.
+  saveGroupAndPinWidgetV3?(
+    groupId: string,
+    groupName: string,
+    todayText: string,
+    tomorrowText: string,
+    snapshotDate: string,
+    scheduleJson: string,
+    importantJson: string,
+    eventsJson: string,
+    accentColor: string,
+  ): Promise<boolean>;
+  saveGroupWidgetDataV3?(
+    groupId: string,
+    groupName: string,
+    todayText: string,
+    tomorrowText: string,
+    snapshotDate: string,
+    scheduleJson: string,
+    importantJson: string,
+    eventsJson: string,
+    accentColor: string,
+  ): Promise<boolean>;
 };
 
 const nativeWidget = NativeModules.PlanadoWidget as PlanadoWidgetNativeModule | undefined;
 const WIDGET_SELECTION_KEY = 'planado:selected-widget-group';
+const MAX_EVENTS_PER_DAY = 6;
 
-type WidgetSelection = { groupId: string; groupName: string };
+type WidgetSelection = { groupId: string; groupName: string; color?: string };
+
+type WidgetSnapshot = Awaited<ReturnType<typeof widgetSnapshot>>;
 
 function localDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -58,25 +84,38 @@ function citRoom(event: { description: string | null; location: string | null })
   return roomLine ? `Room ${roomLine}` : '';
 }
 
-function eventLine(
-  event: {
-    title: string;
-    description: string | null;
-    location: string | null;
-    start_time: string;
-    is_all_day: boolean;
-  },
-  showCitRoom: boolean,
-) {
-  const room = showCitRoom ? citRoom(event) : '';
-  const suffix = room ? `  ·  ${room}` : '';
-  if (event.is_all_day) return `All day  ${event.title}${suffix}`;
-  const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
+function timeLabel(event: GroupWidgetEvent) {
+  if (event.is_all_day) return 'All day';
+  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
     .format(new Date(event.start_time));
-  return `${time}  ${event.title}${suffix}`;
 }
 
-async function widgetSnapshot(groupId: string) {
+function eventLine(event: GroupWidgetEvent, showCitRoom: boolean) {
+  const room = showCitRoom ? citRoom(event) : '';
+  const suffix = room ? `  ·  ${room}` : '';
+  return `${timeLabel(event)}  ${event.title}${suffix}`;
+}
+
+function isHexColor(value: string | null | undefined): value is string {
+  return Boolean(value && /^#[0-9a-f]{6}$/i.test(value));
+}
+
+/** Structured row for the redesigned native widget (V3). */
+function widgetRow(event: GroupWidgetEvent, showCitRoom: boolean, accentColor: string | undefined) {
+  const detail = showCitRoom ? citRoom(event) : event.location?.trim() ?? '';
+  return {
+    id: event.id,
+    time: timeLabel(event),
+    title: event.title,
+    detail,
+    color: isHexColor(event.color) ? event.color : isHexColor(accentColor) ? accentColor : '',
+    allDay: event.is_all_day,
+    startMs: new Date(event.start_time).getTime(),
+    endMs: new Date(event.end_time).getTime(),
+  };
+}
+
+async function widgetSnapshot(groupId: string, accentColor?: string) {
   const schedule = await getGroupWidgetEvents(groupId);
   const showCitRoom = schedule.groupType === 'cit_u_classmates';
   const todayText = schedule.today.length
@@ -91,6 +130,10 @@ async function widgetSnapshot(groupId: string) {
       ? events.slice(0, 4).map((event) => eventLine(event, showCitRoom)).join('\n')
       : showCitRoom ? 'No classes scheduled' : 'Nothing planned',
   ]));
+  const structuredSchedule = Object.fromEntries(Object.entries(schedule.days).map(([date, events]) => [
+    date,
+    events.slice(0, MAX_EVENTS_PER_DAY).map((event) => widgetRow(event, showCitRoom, accentColor)),
+  ]));
   return {
     todayText,
     tomorrowText,
@@ -101,6 +144,8 @@ async function widgetSnapshot(groupId: string) {
       startMs: new Date(event.start_time).getTime(),
       endMs: new Date(event.end_time).getTime(),
     }))),
+    eventsJson: JSON.stringify(structuredSchedule),
+    accentColor: isHexColor(accentColor) ? accentColor : '',
   };
 }
 
@@ -110,21 +155,27 @@ async function selectedWidget(): Promise<WidgetSelection | null> {
   try {
     const value = JSON.parse(stored) as Partial<WidgetSelection>;
     if (typeof value.groupId !== 'string' || typeof value.groupName !== 'string') return null;
-    return { groupId: value.groupId, groupName: value.groupName };
+    return {
+      groupId: value.groupId,
+      groupName: value.groupName,
+      color: typeof value.color === 'string' ? value.color : undefined,
+    };
   } catch {
     return null;
   }
 }
 
-export async function makeGroupWidget(groupId: string, groupName: string) {
-  if (Platform.OS !== 'android' || !nativeWidget) {
-    throw new Error('Planado home-screen widgets are currently available on Android builds only.');
-  }
-
-  const snapshot = await widgetSnapshot(groupId);
-
-  const pinRequested = nativeWidget.saveGroupAndPinWidgetV2
-    ? await nativeWidget.saveGroupAndPinWidgetV2(
+/** Sends the snapshot through the newest bridge method the installed APK supports. */
+async function saveSnapshot(
+  widget: PlanadoWidgetNativeModule,
+  groupId: string,
+  groupName: string,
+  snapshot: WidgetSnapshot,
+  pin: boolean,
+) {
+  if (pin) {
+    if (widget.saveGroupAndPinWidgetV3) {
+      return widget.saveGroupAndPinWidgetV3(
         groupId,
         groupName,
         snapshot.todayText,
@@ -132,17 +183,74 @@ export async function makeGroupWidget(groupId: string, groupName: string) {
         snapshot.snapshotDate,
         snapshot.scheduleJson,
         snapshot.importantJson,
-      )
-    : await nativeWidget.saveGroupAndPinWidget(
+        snapshot.eventsJson,
+        snapshot.accentColor,
+      );
+    }
+    if (widget.saveGroupAndPinWidgetV2) {
+      return widget.saveGroupAndPinWidgetV2(
         groupId,
         groupName,
         snapshot.todayText,
         snapshot.tomorrowText,
         snapshot.snapshotDate,
         snapshot.scheduleJson,
+        snapshot.importantJson,
       );
+    }
+    return widget.saveGroupAndPinWidget(
+      groupId,
+      groupName,
+      snapshot.todayText,
+      snapshot.tomorrowText,
+      snapshot.snapshotDate,
+      snapshot.scheduleJson,
+    );
+  }
 
-  await AsyncStorage.setItem(WIDGET_SELECTION_KEY, JSON.stringify({ groupId, groupName }));
+  if (widget.saveGroupWidgetDataV3) {
+    return widget.saveGroupWidgetDataV3(
+      groupId,
+      groupName,
+      snapshot.todayText,
+      snapshot.tomorrowText,
+      snapshot.snapshotDate,
+      snapshot.scheduleJson,
+      snapshot.importantJson,
+      snapshot.eventsJson,
+      snapshot.accentColor,
+    );
+  }
+  if (widget.saveGroupWidgetDataV2) {
+    return widget.saveGroupWidgetDataV2(
+      groupId,
+      groupName,
+      snapshot.todayText,
+      snapshot.tomorrowText,
+      snapshot.snapshotDate,
+      snapshot.scheduleJson,
+      snapshot.importantJson,
+    );
+  }
+  return widget.saveGroupWidgetData(
+    groupId,
+    groupName,
+    snapshot.todayText,
+    snapshot.tomorrowText,
+    snapshot.snapshotDate,
+    snapshot.scheduleJson,
+  );
+}
+
+export async function makeGroupWidget(groupId: string, groupName: string, color?: string) {
+  if (Platform.OS !== 'android' || !nativeWidget) {
+    throw new Error('Planado home-screen widgets are currently available on Android builds only.');
+  }
+
+  const snapshot = await widgetSnapshot(groupId, color);
+  const pinRequested = await saveSnapshot(nativeWidget, groupId, groupName, snapshot, true);
+
+  await AsyncStorage.setItem(WIDGET_SELECTION_KEY, JSON.stringify({ groupId, groupName, color }));
 
   return { pinRequested };
 }
@@ -151,27 +259,8 @@ export async function refreshSelectedWidget() {
   if (Platform.OS !== 'android' || !nativeWidget) return false;
   const selection = await selectedWidget();
   if (!selection) return false;
-  const snapshot = await widgetSnapshot(selection.groupId);
-  if (nativeWidget.saveGroupWidgetDataV2) {
-    await nativeWidget.saveGroupWidgetDataV2(
-      selection.groupId,
-      selection.groupName,
-      snapshot.todayText,
-      snapshot.tomorrowText,
-      snapshot.snapshotDate,
-      snapshot.scheduleJson,
-      snapshot.importantJson,
-    );
-  } else {
-    await nativeWidget.saveGroupWidgetData(
-      selection.groupId,
-      selection.groupName,
-      snapshot.todayText,
-      snapshot.tomorrowText,
-      snapshot.snapshotDate,
-      snapshot.scheduleJson,
-    );
-  }
+  const snapshot = await widgetSnapshot(selection.groupId, selection.color);
+  await saveSnapshot(nativeWidget, selection.groupId, selection.groupName, snapshot, false);
   return true;
 }
 
@@ -186,6 +275,9 @@ export async function syncSelectedWidgetGroupName(groupId: string, groupName: st
   if (Platform.OS !== 'android' || !nativeWidget) return false;
   const selection = await selectedWidget();
   if (!selection || selection.groupId !== groupId) return false;
-  await AsyncStorage.setItem(WIDGET_SELECTION_KEY, JSON.stringify({ groupId, groupName }));
+  await AsyncStorage.setItem(
+    WIDGET_SELECTION_KEY,
+    JSON.stringify({ groupId, groupName, color: selection.color }),
+  );
   return refreshSelectedWidget();
 }

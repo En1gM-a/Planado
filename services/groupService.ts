@@ -69,6 +69,7 @@ export type GroupWidgetEvent = {
   end_time: string;
   is_all_day: boolean;
   is_important: boolean;
+  color: string | null;
 };
 
 export type EditableGroup = {
@@ -297,7 +298,7 @@ export async function getGroupWidgetEvents(groupId: string): Promise<{
   const rangeEnd = new Date(todayStart);
   rangeEnd.setDate(todayStart.getDate() + 14);
 
-  const eventFields = 'id, title, description, location, start_time, end_time, is_all_day, is_important';
+  const eventFields = 'id, title, description, location, start_time, end_time, is_all_day, is_important, color';
   const [groupResult, eventResult, importantResult] = await Promise.all([
     supabase
       .from('groups')

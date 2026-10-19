@@ -1,11 +1,9 @@
 import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,9 +14,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
 import { PlanadoLoader } from '../../components/PlanadoLoader';
+import { Button } from '../../components/ui/Button';
+import { Reveal } from '../../components/ui/Reveal';
 import { useAuth } from '../../hooks/useAuth';
 import { getMyProfile, updateMyProfile } from '../../services/authService';
 import { COLORS } from '../../theme/colors';
+import { gradientStyle, RADIUS, SHADOW, TYPE } from '../../theme/tokens';
+
+type Field = 'displayName' | 'username' | 'timezone' | 'bio';
+
+const BACKDROP = 'radial-gradient(circle at 100% 0%, rgba(91, 92, 226, 0.2) 0%, rgba(91, 92, 226, 0) 42%)';
 
 function normalizeUsername(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 30);
@@ -38,6 +43,7 @@ export default function CompleteProfileScreen() {
   const [bio, setBio] = useState('');
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [focusedField, setFocusedField] = useState<Field | null>(null);
 
   const avatarUrl = metadata.avatar_url ?? metadata.picture;
   const initials = useMemo(
@@ -61,7 +67,7 @@ export default function CompleteProfileScreen() {
       }
 
       try {
-        const profile = await getMyProfile();
+        const profile = await getMyProfile(user.id);
 
         if (!active || !profile) return;
         setDisplayName(profile.display_name || initialDisplayName);
@@ -97,6 +103,7 @@ export default function CompleteProfileScreen() {
   const usernameValid = /^[a-z0-9._]{3,30}$/.test(username);
   const displayNameValid = displayName.trim().length >= 1;
   const formValid = usernameValid && displayNameValid && timezone.trim().length > 0;
+  const usernameError = username.length > 0 && !usernameValid;
 
   async function handleSave() {
     if (!formValid || saving) return;
@@ -128,6 +135,12 @@ export default function CompleteProfileScreen() {
     return <PlanadoLoader fullScreen message="Preparing your Planado profile..." />;
   }
 
+  const fieldStyle = (field: Field, invalid = false) => [
+    styles.inputShell,
+    focusedField === field && styles.inputShellFocused,
+    invalid && styles.inputShellInvalid,
+  ];
+
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
       <KeyboardAvoidingView
@@ -135,130 +148,145 @@ export default function CompleteProfileScreen() {
         style={styles.keyboardView}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, gradientStyle(BACKDROP, 'transparent')]}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.backgroundGlow} />
           <View style={styles.container}>
-            <View style={styles.header}>
+            <Reveal style={styles.header}>
               <View style={styles.stepRow}>
-                <Text style={styles.eyebrow}>YOUR PLANADO PROFILE</Text>
-                <Text style={styles.stepText}>1 of 1</Text>
+                <Text style={styles.eyebrow}>Your Planado profile</Text>
+                <View style={styles.stepPill}>
+                  <Text numberOfLines={1} style={styles.stepText}>Final step</Text>
+                </View>
               </View>
-              <Text style={styles.title}>Make it yours.</Text>
+              <Text accessibilityRole="header" style={styles.title}>Make it yours.</Text>
               <Text style={styles.subtitle}>
                 Help friends recognize you when plans start filling the calendar.
               </Text>
-              <View style={styles.progressTrack}>
-                <View style={styles.progressFill} />
-              </View>
-            </View>
+            </Reveal>
 
-            <View style={styles.profilePreview}>
+            <Reveal index={1} style={styles.profilePreview}>
               <View style={styles.avatarShell}>
                 {avatarUrl ? (
-                  <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+                  <Image accessibilityLabel="Your Google photo" source={{ uri: avatarUrl }} style={styles.avatarImage} />
                 ) : (
                   <Text style={styles.avatarInitials}>{initials}</Text>
                 )}
-              </View>
-              <View style={styles.googleBadge}>
-                <Text style={styles.googleBadgeText}>G</Text>
+                <View style={styles.googleBadge}>
+                  <Image
+                    accessibilityIgnoresInvertColors
+                    source={require('../../assets/images/google-logo.png')}
+                    resizeMode="contain"
+        style={styles.googleBadgeImage}
+                  />
+                </View>
               </View>
               <Text style={styles.previewName}>{displayName || 'Your name'}</Text>
-              <Text style={styles.previewMeta}>Imported securely from Google</Text>
-            </View>
+              <Text style={styles.previewMeta}>@{username || 'username'}</Text>
+            </Reveal>
 
-            <View style={styles.formCard}>
+            <Reveal index={2} style={styles.formCard}>
               <View style={styles.field}>
                 <Text style={styles.label}>Display name</Text>
-                <TextInput
-                  autoCapitalize="words"
-                  maxLength={60}
-                  onChangeText={setDisplayName}
-                  placeholder="How friends will see you"
-                  placeholderTextColor={COLORS.faint}
-                  style={styles.input}
-                  value={displayName}
-                />
+                <View style={fieldStyle('displayName')}>
+                  <TextInput
+                    accessibilityLabel="Display name"
+                    autoCapitalize="words"
+                    maxLength={60}
+                    onBlur={() => setFocusedField(null)}
+                    onChangeText={setDisplayName}
+                    onFocus={() => setFocusedField('displayName')}
+                    placeholder="How friends will see you"
+                    placeholderTextColor={COLORS.faint}
+                    style={styles.input}
+                    value={displayName}
+                  />
+                </View>
               </View>
 
               <View style={styles.field}>
                 <Text style={styles.label}>Username</Text>
-                <View style={styles.usernameInput}>
+                <View style={fieldStyle('username', usernameError)}>
                   <Text style={styles.atSign}>@</Text>
                   <TextInput
+                    accessibilityHint="3 to 30 lowercase letters, numbers, periods, or underscores"
+                    accessibilityLabel="Username"
                     autoCapitalize="none"
                     autoCorrect={false}
                     maxLength={30}
+                    onBlur={() => setFocusedField(null)}
                     onChangeText={(value) => setUsername(normalizeUsername(value))}
+                    onFocus={() => setFocusedField('username')}
                     placeholder="yourusername"
                     placeholderTextColor={COLORS.faint}
-                    style={styles.usernameTextInput}
+                    style={styles.input}
                     value={username}
                   />
                 </View>
-                <Text style={[styles.helper, username.length > 0 && !usernameValid && styles.helperError]}>
-                  {username.length > 0 && !usernameValid
-                    ? 'Use 3-30 lowercase letters, numbers, periods, or underscores.'
+                <Text accessibilityLiveRegion="polite" style={[styles.helper, usernameError && styles.helperError]}>
+                  {usernameError
+                    ? 'Use 3–30 lowercase letters, numbers, periods, or underscores.'
                     : 'Friends can recognize and find you by this name.'}
                 </Text>
               </View>
 
               <View style={styles.field}>
                 <Text style={styles.label}>Timezone</Text>
-                <TextInput
-                  autoCapitalize="none"
-                  onChangeText={setTimezone}
-                  placeholder="Asia/Taipei"
-                  placeholderTextColor={COLORS.faint}
-                  style={styles.input}
-                  value={timezone}
-                />
+                <View style={fieldStyle('timezone')}>
+                  <TextInput
+                    accessibilityLabel="Timezone"
+                    autoCapitalize="none"
+                    onBlur={() => setFocusedField(null)}
+                    onChangeText={setTimezone}
+                    onFocus={() => setFocusedField('timezone')}
+                    placeholder="Asia/Taipei"
+                    placeholderTextColor={COLORS.faint}
+                    style={styles.input}
+                    value={timezone}
+                  />
+                </View>
                 <Text style={styles.helper}>
                   Planado uses this to show events and summaries at the right time.
                 </Text>
               </View>
 
-              <View style={styles.field}>
+              <View style={[styles.field, styles.lastField]}>
                 <View style={styles.optionalLabelRow}>
                   <Text style={styles.label}>A little about you</Text>
-                  <Text style={styles.optional}>OPTIONAL</Text>
+                  <Text style={styles.optional}>Optional</Text>
                 </View>
-                <TextInput
-                  maxLength={300}
-                  multiline
-                  numberOfLines={3}
-                  onChangeText={setBio}
-                  placeholder="Weekend explorer, coffee person, always down for a trip..."
-                  placeholderTextColor={COLORS.faint}
-                  style={[styles.input, styles.bioInput]}
-                  textAlignVertical="top"
-                  value={bio}
-                />
+                <View style={[...fieldStyle('bio'), styles.bioShell]}>
+                  <TextInput
+                    accessibilityLabel="About you"
+                    maxLength={300}
+                    multiline
+                    numberOfLines={3}
+                    onBlur={() => setFocusedField(null)}
+                    onChangeText={setBio}
+                    onFocus={() => setFocusedField('bio')}
+                    placeholder="Weekend explorer, coffee person, always down for a trip..."
+                    placeholderTextColor={COLORS.faint}
+                    style={[styles.input, styles.bioInput]}
+                    textAlignVertical="top"
+                    value={bio}
+                  />
+                </View>
               </View>
-            </View>
+            </Reveal>
 
-            <Pressable
-              accessibilityRole="button"
-              disabled={!formValid || saving}
-              onPress={handleSave}
-              style={({ pressed }) => [
-                styles.continueButton,
-                pressed && styles.continueButtonPressed,
-                (!formValid || saving) && styles.continueButtonDisabled,
-              ]}
-            >
-              {saving ? <ActivityIndicator color="#FFFFFF" /> : null}
-              <Text style={styles.continueButtonText}>
-                {saving ? 'Saving your profile...' : 'Finish setup'}
+            <Reveal index={3}>
+              <Button
+                disabled={!formValid}
+                icon="arrow-forward"
+                label={saving ? 'Saving your profile…' : 'Finish setup'}
+                loading={saving}
+                onPress={() => void handleSave()}
+                style={styles.continueButton}
+              />
+              <Text style={styles.footerText}>
+                You can update these details anytime from Profile.
               </Text>
-              {!saving ? <Text style={styles.continueArrow}>→</Text> : null}
-            </Pressable>
-
-            <Text style={styles.footerText}>
-              You can update these details anytime from Profile.
-            </Text>
+            </Reveal>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -269,43 +297,82 @@ export default function CompleteProfileScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
   keyboardView: { flex: 1 },
-  scrollContent: { flexGrow: 1, alignItems: 'center', paddingHorizontal: 20, paddingVertical: Platform.OS === 'web' ? 38 : 20, backgroundColor: COLORS.background, overflow: 'hidden' },
-  backgroundGlow: { position: 'absolute', width: 360, height: 360, borderRadius: 180, right: -190, top: -170, backgroundColor: COLORS.primarySoft },
+  scrollContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: Platform.OS === 'web' ? 38 : 20,
+  },
   container: { width: '100%', maxWidth: 500 },
-  header: { marginBottom: 23 },
+  header: { marginBottom: 22 },
   stepRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eyebrow: { color: COLORS.primary, fontSize: 11, fontWeight: '800', letterSpacing: 1.2 },
-  stepText: { color: COLORS.muted, fontSize: 12, fontWeight: '600' },
-  title: { marginTop: 10, color: COLORS.ink, fontSize: 35, lineHeight: 40, fontWeight: '800', letterSpacing: -1.5 },
-  subtitle: { maxWidth: 390, marginTop: 9, color: COLORS.muted, fontSize: 14, lineHeight: 21 },
-  progressTrack: { height: 5, marginTop: 18, borderRadius: 8, backgroundColor: COLORS.line, overflow: 'hidden' },
-  progressFill: { width: '100%', height: '100%', borderRadius: 8, backgroundColor: COLORS.primary },
-  profilePreview: { alignItems: 'center', marginBottom: 22 },
-  avatarShell: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary, borderWidth: 5, borderColor: COLORS.surface, shadowColor: '#25204F', shadowOpacity: 0.17, shadowRadius: 18, shadowOffset: { width: 0, height: 9 }, overflow: 'hidden' },
-  avatarImage: { width: '100%', height: '100%' },
-  avatarInitials: { color: '#FFFFFF', fontSize: 25, fontWeight: '800' },
-  googleBadge: { width: 25, height: 25, marginTop: -21, marginLeft: 62, borderRadius: 13, borderWidth: 3, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', shadowColor: '#25204F', shadowOpacity: 0.12, shadowRadius: 6 },
-  googleBadgeText: { color: '#4285F4', fontSize: 11, fontWeight: '900' },
-  previewName: { marginTop: 9, color: COLORS.ink, fontSize: 17, fontWeight: '800' },
-  previewMeta: { marginTop: 3, color: COLORS.faint, fontSize: 10 },
-  formCard: { padding: 18, borderWidth: 1, borderColor: COLORS.line, borderRadius: 24, backgroundColor: COLORS.surface, shadowColor: '#25204F', shadowOpacity: 0.06, shadowRadius: 18, shadowOffset: { width: 0, height: 9 } },
-  field: { marginBottom: 17 },
-  label: { marginBottom: 7, color: COLORS.ink, fontSize: 12, fontWeight: '800' },
-  input: { minHeight: 49, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, color: COLORS.ink, backgroundColor: COLORS.input, fontSize: 14 },
-  usernameInput: { minHeight: 49, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, backgroundColor: COLORS.input },
-  atSign: { color: COLORS.primary, fontSize: 15, fontWeight: '800' },
-  usernameTextInput: { flex: 1, height: 47, paddingHorizontal: 5, color: COLORS.ink, fontSize: 14 },
-  helper: { marginTop: 6, color: COLORS.faint, fontSize: 10, lineHeight: 15 },
-  helperError: { color: COLORS.red },
-  optionalLabelRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  optional: { color: COLORS.faint, fontSize: 9, fontWeight: '800', letterSpacing: 0.8 },
-  bioInput: { minHeight: 82, paddingTop: 13 },
-  continueButton: { minHeight: 55, marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 16, backgroundColor: COLORS.primary, shadowColor: '#5B5CE2', shadowOpacity: 0.26, shadowRadius: 18, shadowOffset: { width: 0, height: 9 } },
-  continueButtonPressed: { transform: [{ scale: 0.99 }], backgroundColor: '#4B4CC8' },
-  continueButtonDisabled: { opacity: 0.48 },
-  continueButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
-  continueArrow: { color: '#FFFFFF', fontSize: 20, marginTop: -2 },
-  footerText: { marginTop: 14, color: COLORS.faint, fontSize: 10, textAlign: 'center' },
-  loadingScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: COLORS.background },
-  loadingText: { color: COLORS.muted, fontSize: 13 },
+  eyebrow: { ...TYPE.overline, color: COLORS.primary },
+  stepPill: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: RADIUS.pill, backgroundColor: COLORS.primarySoft },
+  stepText: { ...TYPE.footnote, color: COLORS.primary, fontWeight: '700' },
+  title: { ...TYPE.display, marginTop: 10, color: COLORS.ink },
+  subtitle: { ...TYPE.body, maxWidth: 390, marginTop: 8, color: COLORS.muted },
+  profilePreview: { alignItems: 'center', marginBottom: 20 },
+  avatarShell: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderWidth: 4,
+    borderColor: COLORS.surface,
+    boxShadow: SHADOW.md,
+  },
+  avatarImage: { width: 84, height: 84, borderRadius: 42 },
+  avatarInitials: { color: '#FFFFFF', fontSize: 28, lineHeight: 34, fontWeight: '800' },
+  googleBadge: {
+    position: 'absolute',
+    right: -4,
+    bottom: -4,
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: COLORS.background,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+  },
+  googleBadgeImage: { width: 14, height: 14 },
+  previewName: { width: '100%', ...TYPE.title3, marginTop: 12, color: COLORS.ink, textAlign: 'center' },
+  previewMeta: { width: '100%', ...TYPE.subhead, marginTop: 2, color: COLORS.muted, textAlign: 'center' },
+  formCard: {
+    padding: 18,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
+    boxShadow: SHADOW.sm,
+  },
+  field: { marginBottom: 18 },
+  lastField: { marginBottom: 0 },
+  label: { ...TYPE.subhead, marginBottom: 8, color: COLORS.ink, fontWeight: '700' },
+  inputShell: {
+    minHeight: 52,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1.5,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.input,
+  },
+  inputShellFocused: { borderColor: COLORS.primary, backgroundColor: COLORS.surface },
+  inputShellInvalid: { borderColor: COLORS.red },
+  input: { ...TYPE.body, flex: 1, paddingVertical: 12, color: COLORS.ink },
+  atSign: { ...TYPE.headline, color: COLORS.primary },
+  helper: { ...TYPE.footnote, marginTop: 8, color: COLORS.muted },
+  helperError: { color: COLORS.red, fontWeight: '600' },
+  optionalLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  optional: { ...TYPE.footnote, color: COLORS.muted, fontWeight: '600' },
+  bioShell: { minHeight: 96, alignItems: 'flex-start' },
+  bioInput: { minHeight: 88 },
+  continueButton: { marginTop: 20 },
+  footerText: { ...TYPE.footnote, marginTop: 12, color: COLORS.muted, textAlign: 'center' },
 });

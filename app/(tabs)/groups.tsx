@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -18,9 +17,18 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
-import { PlanadoLoader } from '../../components/PlanadoLoader';
+import { Banner } from '../../components/ui/Banner';
+import { Button } from '../../components/ui/Button';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { PageHeader } from '../../components/ui/Headers';
+import { IconButton } from '../../components/ui/IconButton';
+import { PressableScale } from '../../components/ui/PressableScale';
+import { Reveal } from '../../components/ui/Reveal';
+import { SegmentedControl } from '../../components/ui/SegmentedControl';
+import { SkeletonList } from '../../components/ui/Skeleton';
 import { useAuth } from '../../hooks/useAuth';
 import { COLORS } from '../../theme/colors';
+import { GRADIENT, gradientStyle, ON_PRIMARY, PAGE, RADIUS, SHADOW, tint, TYPE } from '../../theme/tokens';
 import {
   createGroup,
   getMyGroups,
@@ -146,6 +154,7 @@ export default function GroupsScreen() {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             colors={[COLORS.primary]}
@@ -157,199 +166,167 @@ export default function GroupsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.page}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.eyebrow}>YOUR PEOPLE</Text>
-              <Text style={styles.title}>Groups</Text>
-            </View>
-            <View style={styles.headerActions}>
-              <Pressable
-                onPress={() => setModal('join')}
-                style={({ pressed }) => [styles.joinButton, pressed && styles.pressed]}
-              >
-                <Ionicons color={COLORS.primary} name="enter-outline" size={18} />
-              </Pressable>
-              <Pressable
-                onPress={() => setModal('create')}
-                style={({ pressed }) => [styles.createButton, pressed && styles.pressed]}
-              >
-                <Ionicons color="#FFFFFF" name="add" size={18} />
-                <Text style={styles.createButtonText}>Create</Text>
-              </Pressable>
-            </View>
-          </View>
+          <PageHeader
+            actions={
+              <>
+                <IconButton icon="enter-outline" color={COLORS.primary} label="Join with invite code" onPress={() => setModal('join')} />
+                <Button icon="add" label="Create" onPress={() => setModal('create')} size="sm" />
+              </>
+            }
+            eyebrow="Your people"
+            title="Groups"
+          />
 
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryGlow} />
-            <View style={styles.summaryIcon}>
-              <Ionicons color="#FFFFFF" name="people" size={26} />
+          <Reveal index={1} style={[styles.summaryCard, gradientStyle(GRADIENT.hero, GRADIENT.heroFallback)]}>
+            <View style={styles.summaryTop}>
+              <View style={styles.summaryIcon}>
+                <Ionicons color="#FFFFFF" name="people" size={24} />
+              </View>
+              <View style={styles.summaryCopy}>
+                <Text style={styles.summaryTitle}>Plan together, stay close.</Text>
+                <Text style={styles.summaryBody}>Shared calendars and updates for the people that matter.</Text>
+              </View>
             </View>
-            <View style={styles.summaryCopy}>
-              <Text style={styles.summaryTitle}>Plan together, stay close.</Text>
-              <Text style={styles.summaryBody}>One place for shared calendars, updates, and the people that matter.</Text>
+            <View style={styles.statsRow}>
+              <Stat label="Groups" value={groups.length} />
+              <View style={styles.statDivider} />
+              <Stat label="You manage" value={managedCount} />
+              <View style={styles.statDivider} />
+              <Stat label="Connections" value={totalPeople} />
             </View>
-            <View style={styles.summaryStats}>
-              <Text style={styles.summaryStatNumber}>{groups.length}</Text>
-              <Text style={styles.summaryStatLabel}>GROUPS</Text>
-            </View>
-          </View>
+          </Reveal>
 
-          <View style={styles.metricRow}>
-            <View style={styles.metricCard}>
-              <View style={[styles.metricIcon, { backgroundColor: COLORS.primarySoft }]}>
-                <Ionicons color={COLORS.primary} name="shield-checkmark-outline" size={20} />
-              </View>
-              <View>
-                <Text style={styles.metricNumber}>{managedCount}</Text>
-                <Text style={styles.metricLabel}>Managed by you</Text>
-              </View>
-            </View>
-            <View style={styles.metricCard}>
-              <View style={[styles.metricIcon, { backgroundColor: COLORS.greenSoft }]}>
-                <Ionicons color={COLORS.green} name="person-outline" size={20} />
-              </View>
-              <View>
-                <Text style={styles.metricNumber}>{totalPeople}</Text>
-                <Text style={styles.metricLabel}>Member connections</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.searchShell}>
-            <Ionicons color={COLORS.faint} name="search" size={19} />
+          <Reveal index={2} style={styles.searchShell}>
+            <Ionicons color={COLORS.muted} name="search" size={19} />
             <TextInput
+              accessibilityLabel="Search your groups"
               onChangeText={setSearch}
               placeholder="Search your groups"
               placeholderTextColor={COLORS.faint}
+              returnKeyType="search"
               style={styles.searchInput}
               value={search}
             />
             {search ? (
-              <Pressable onPress={() => setSearch('')}>
-                <Ionicons color={COLORS.faint} name="close-circle" size={18} />
+              <Pressable accessibilityLabel="Clear search" accessibilityRole="button" hitSlop={10} onPress={() => setSearch('')}>
+                <Ionicons color={COLORS.faint} name="close-circle" size={20} />
               </Pressable>
             ) : null}
-          </View>
+          </Reveal>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-            {(['all', 'owner', 'admin', 'member'] as RoleFilter[]).map((filter) => {
-              const active = roleFilter === filter;
-              return (
-                <Pressable
-                  key={filter}
-                  onPress={() => setRoleFilter(filter)}
-                  style={[styles.filterChip, active && styles.filterChipActive]}
-                >
-                  <Text style={[styles.filterText, active && styles.filterTextActive]}>
-                    {filter === 'all' ? 'All groups' : filter === 'owner' ? 'Owned' : `${filter.charAt(0).toUpperCase()}${filter.slice(1)}`}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+          <Reveal index={3} style={styles.filters}>
+            <SegmentedControl
+              onChange={setRoleFilter}
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'owner', label: 'Owned' },
+                { value: 'admin', label: 'Admin' },
+                { value: 'member', label: 'Member' },
+              ]}
+              value={roleFilter}
+            />
+          </Reveal>
 
-          {error ? (
-            <View style={styles.errorBanner}>
-              <Ionicons color={COLORS.red} name="alert-circle" size={17} />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
+          <Banner message={error} />
 
           <View style={styles.sectionHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>Your circles</Text>
+            <View style={styles.sectionCopy}>
+              <Text accessibilityRole="header" style={styles.sectionTitle}>Your circles</Text>
               <Text style={styles.sectionSubtitle}>
-                {visibleGroups.length} group{visibleGroups.length === 1 ? '' : 's'} shown
+                {loading ? 'Loading…' : `${visibleGroups.length} group${visibleGroups.length === 1 ? '' : 's'} shown`}
               </Text>
             </View>
-            <Pressable onPress={() => setModal('join')}>
-              <Text style={styles.inviteLink}>Have an invite code?</Text>
+            <Pressable accessibilityRole="button" hitSlop={10} onPress={() => setModal('join')} style={styles.inviteLink}>
+              <Ionicons color={COLORS.primary} name="key-outline" size={15} />
+              <Text numberOfLines={1} style={styles.inviteLinkText}>Have a code?</Text>
             </Pressable>
           </View>
 
           {loading ? (
-            <View style={styles.loadingState}>
-              <PlanadoLoader compact message="Gathering your groups..." />
-            </View>
+            <SkeletonList count={3} label="Loading your groups" />
           ) : visibleGroups.length ? (
             <View style={styles.groupList}>
-              {visibleGroups.map((group) => (
-                <Pressable
-                  key={group.id}
-                  onPress={() => router.push(`/group/${group.id}` as Href)}
-                  style={({ pressed }) => [styles.groupCard, pressed && styles.pressed]}
-                >
-                  <View style={[styles.groupArt, { backgroundColor: `${group.color}1A` }]}>
-                    {group.image_url ? (
-                      <Image source={{ uri: group.image_url }} style={styles.groupImage} />
-                    ) : (
-                      <>
-                        <View style={[styles.artCircleLarge, { backgroundColor: `${group.color}22` }]} />
-                        <View style={[styles.artCircleSmall, { backgroundColor: `${group.color}32` }]} />
-                        <Text style={[styles.groupInitial, { color: group.color }]}>{group.name.charAt(0).toUpperCase()}</Text>
-                      </>
-                    )}
-                  </View>
-                  <View style={styles.groupContent}>
-                    <View style={styles.groupTitleRow}>
-                      <Text numberOfLines={1} style={styles.groupName}>{group.name}</Text>
-                      <View style={[styles.roleBadge, group.role === 'owner' && styles.ownerBadge]}>
-                        <Text style={[styles.roleBadgeText, group.role === 'owner' && styles.ownerBadgeText]}>{roleLabel(group.role)}</Text>
+              {visibleGroups.map((group, index) => (
+                <Reveal index={index} key={group.id}>
+                  <PressableScale
+                    accessibilityHint="Opens the group"
+                    accessibilityLabel={`${group.name}, ${roleLabel(group.role)}, ${group.member_count} members`}
+                    onPress={() => router.push(`/group/${group.id}` as Href)}
+                    scaleTo={0.98}
+                    style={styles.groupCard}
+                  >
+                    <View style={styles.groupTop}>
+                      <View style={[styles.groupArt, { backgroundColor: tint(group.color, 0.16) }]}>
+                        {group.image_url ? (
+                          <Image source={{ uri: group.image_url }} style={styles.groupImage} />
+                        ) : (
+                          <Text style={[styles.groupInitial, { color: group.color }]}>{group.name.charAt(0).toUpperCase()}</Text>
+                        )}
                       </View>
+                      <View style={styles.groupContent}>
+                        <View style={styles.groupTitleRow}>
+                          <Text numberOfLines={1} style={styles.groupName}>{group.name}</Text>
+                          <View style={[styles.roleBadge, group.role === 'owner' && styles.ownerBadge]}>
+                            <Text style={[styles.roleBadgeText, group.role === 'owner' && styles.ownerBadgeText]}>{roleLabel(group.role)}</Text>
+                          </View>
+                        </View>
+                        <Text numberOfLines={2} style={styles.groupDescription}>
+                          {group.description || 'A shared space for plans, updates, and time together.'}
+                        </Text>
+                        <View style={styles.groupMetaRow}>
+                          <View style={styles.metaItem}>
+                            <Ionicons color={COLORS.muted} name="people-outline" size={15} />
+                            <Text style={styles.metaText}>{group.member_count}</Text>
+                          </View>
+                          <View style={styles.metaItem}>
+                            <Ionicons color={COLORS.muted} name="globe-outline" size={15} />
+                            <Text numberOfLines={1} style={styles.metaText}>{group.timezone}</Text>
+                          </View>
+                          {group.group_type === 'cit_u_classmates' ? (
+                            <View style={styles.citBadge}>
+                              <Ionicons color={COLORS.primary} name="school-outline" size={13} />
+                              <Text style={styles.citBadgeText}>CIT-U</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      </View>
+                      <Ionicons color={COLORS.faint} name="chevron-forward" size={18} />
                     </View>
-                    <Text numberOfLines={2} style={styles.groupDescription}>
-                      {group.description || 'A shared space for plans, updates, and time together.'}
-                    </Text>
-                    {group.group_type === 'cit_u_classmates' ? (
-                      <View style={styles.citBadge}>
-                        <Ionicons color={COLORS.primary} name="school-outline" size={11} />
-                        <Text style={styles.citBadgeText}>CIT-U</Text>
-                      </View>
-                    ) : null}
-                    <View style={styles.groupMetaRow}>
-                      <View style={styles.metaItem}>
-                        <Ionicons color={COLORS.faint} name="people-outline" size={14} />
-                        <Text style={styles.metaText}>{group.member_count}</Text>
-                      </View>
-                      <View style={styles.metaItem}>
-                        <Ionicons color={COLORS.faint} name="globe-outline" size={14} />
-                        <Text numberOfLines={1} style={styles.metaText}>{group.timezone}</Text>
-                      </View>
+                    <View style={[styles.nextEvent, { backgroundColor: tint(group.color, 0.1) }]}>
+                      <Ionicons color={group.color} name={group.next_event ? 'calendar' : 'calendar-clear-outline'} size={15} />
+                      <Text numberOfLines={1} style={[styles.nextEventText, !group.next_event && styles.nextEventEmpty]}>
+                        {nextEventLabel(group)}
+                      </Text>
                     </View>
-                    <View style={[styles.nextEvent, { backgroundColor: `${group.color}12` }]}>
-                      <View style={[styles.nextEventDot, { backgroundColor: group.color }]} />
-                      <Text numberOfLines={1} style={[styles.nextEventText, { color: group.color }]}>{nextEventLabel(group)}</Text>
-                    </View>
-                  </View>
-                  <Ionicons color={COLORS.faint} name="chevron-forward" size={18} />
-                </Pressable>
+                  </PressableScale>
+                </Reveal>
               ))}
             </View>
           ) : groups.length ? (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIcon}>
-                <Ionicons color={COLORS.primary} name="search-outline" size={30} />
-              </View>
-              <Text style={styles.emptyTitle}>No matching groups</Text>
-              <Text style={styles.emptyBody}>Try a different search or role filter.</Text>
-            </View>
+            <EmptyState
+              body="Try a different search or role filter."
+              icon="search-outline"
+              title="No matching groups"
+            >
+              <Button
+                label="Clear filters"
+                onPress={() => {
+                  setSearch('');
+                  setRoleFilter('all');
+                }}
+                size="sm"
+                variant="soft"
+              />
+            </EmptyState>
           ) : (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIcon}>
-                <Ionicons color={COLORS.primary} name="people-outline" size={34} />
-              </View>
-              <Text style={styles.emptyTitle}>Start your first circle</Text>
-              <Text style={styles.emptyBody}>Create a group for friends, family, classmates, or teammates—or join one with an invite code.</Text>
-              <View style={styles.emptyActions}>
-                <Pressable onPress={() => setModal('create')} style={styles.emptyPrimary}>
-                  <Ionicons color="#FFFFFF" name="add" size={17} />
-                  <Text style={styles.emptyPrimaryText}>Create group</Text>
-                </Pressable>
-                <Pressable onPress={() => setModal('join')} style={styles.emptySecondary}>
-                  <Text style={styles.emptySecondaryText}>Join with code</Text>
-                </Pressable>
-              </View>
-            </View>
+            <EmptyState
+              body="Create a group for friends, family, classmates, or teammates—or join one with an invite code."
+              icon="people-outline"
+              title="Start your first circle"
+            >
+              <Button icon="add" label="Create group" onPress={() => setModal('create')} size="sm" />
+              <Button label="Join with code" onPress={() => setModal('join')} size="sm" variant="secondary" />
+            </EmptyState>
           )}
         </View>
       </ScrollView>
@@ -363,6 +340,15 @@ export default function GroupsScreen() {
         }}
       />
     </SafeAreaView>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text numberOfLines={1} style={styles.statLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -436,86 +422,78 @@ function GroupActionModal({
     }
   }
 
+  const creating = mode === 'create';
+
   return (
-    <Modal animationType="slide" onRequestClose={onClose} transparent visible={Boolean(mode)}>
+    <Modal animationType="slide" onRequestClose={onClose} statusBarTranslucent transparent visible={Boolean(mode)}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
-        <Pressable onPress={onClose} style={StyleSheet.absoluteFill} />
-        <View style={styles.modalCard}>
+        <Pressable accessibilityLabel="Close" onPress={onClose} style={StyleSheet.absoluteFill} />
+        <View accessibilityViewIsModal style={styles.modalCard}>
           <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
-            <View style={[styles.modalIcon, { backgroundColor: mode === 'create' ? COLORS.primarySoft : COLORS.greenSoft }]}>
-              <Ionicons color={mode === 'create' ? COLORS.primary : COLORS.green} name={mode === 'create' ? 'people-outline' : 'enter-outline'} size={23} />
+            <View style={[styles.modalIcon, { backgroundColor: creating ? COLORS.primarySoft : COLORS.greenSoft }]}>
+              <Ionicons color={creating ? COLORS.primary : COLORS.green} name={creating ? 'people-outline' : 'enter-outline'} size={24} />
             </View>
             <View style={styles.modalHeaderCopy}>
-              <Text style={styles.modalTitle}>{mode === 'create' ? 'Create a group' : 'Join a group'}</Text>
-              <Text style={styles.modalSubtitle}>{mode === 'create' ? 'Make a shared home for your plans.' : 'Enter the code shared by a group admin.'}</Text>
+              <Text accessibilityRole="header" style={styles.modalTitle}>{creating ? 'Create a group' : 'Join a group'}</Text>
+              <Text style={styles.modalSubtitle}>{creating ? 'Make a shared home for your plans.' : 'Enter the code shared by a group admin.'}</Text>
             </View>
-            <Pressable onPress={onClose} style={styles.modalClose}>
-              <Ionicons color={COLORS.muted} name="close" size={22} />
-            </Pressable>
+            <IconButton icon="close" label="Close" onPress={onClose} tone="ghost" />
           </View>
 
-          {error ? (
-            <View style={styles.modalError}>
-              <Ionicons color={COLORS.red} name="alert-circle" size={16} />
-              <Text style={styles.modalErrorText}>{error}</Text>
-            </View>
-          ) : null}
+          <Banner message={error} />
 
-          {mode === 'create' ? (
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              <Text style={styles.inputLabel}>GROUP TYPE</Text>
+          {creating ? (
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.modalScroll}>
+              <Text style={styles.inputLabel}>Group type</Text>
               <View style={styles.groupTypeRow}>
-                <Pressable
+                <ChoiceCard
+                  active={groupType === 'general'}
+                  body="Friends, family, or a team"
+                  icon="people-outline"
                   onPress={() => setGroupType('general')}
-                  style={[styles.groupTypeCard, groupType === 'general' && styles.groupTypeCardActive]}
-                >
-                  <View style={[styles.groupTypeIcon, groupType === 'general' && styles.groupTypeIconActive]}>
-                    <Ionicons color={groupType === 'general' ? COLORS.primary : COLORS.muted} name="people-outline" size={20} />
-                  </View>
-                  <Text style={[styles.groupTypeTitle, groupType === 'general' && styles.groupTypeTitleActive]}>General</Text>
-                  <Text style={styles.groupTypeBody}>Friends, family, or a team</Text>
-                </Pressable>
-                <Pressable
+                  title="General"
+                />
+                <ChoiceCard
+                  active={groupType === 'cit_u_classmates'}
+                  body="Ready for class schedule import"
+                  icon="school-outline"
                   onPress={() => setGroupType('cit_u_classmates')}
-                  style={[styles.groupTypeCard, groupType === 'cit_u_classmates' && styles.groupTypeCardActive]}
-                >
-                  <View style={[styles.groupTypeIcon, groupType === 'cit_u_classmates' && styles.groupTypeIconActive]}>
-                    <Ionicons color={groupType === 'cit_u_classmates' ? COLORS.primary : COLORS.muted} name="school-outline" size={20} />
-                  </View>
-                  <Text style={[styles.groupTypeTitle, groupType === 'cit_u_classmates' && styles.groupTypeTitleActive]}>CIT-U classmates</Text>
-                  <Text style={styles.groupTypeBody}>Prepare schedule connection</Text>
-                </Pressable>
-              </View>
-              <Text style={styles.inputLabel}>GROUP NAME</Text>
-              <View style={styles.inputShell}>
-                <Ionicons color={COLORS.faint} name="people-outline" size={18} />
-                <TextInput maxLength={80} onChangeText={setName} placeholder="Weekend crew" placeholderTextColor={COLORS.faint} style={styles.input} value={name} />
-                <Text style={styles.inputCount}>{name.length}/80</Text>
+                  title="CIT-U classmates"
+                />
               </View>
               <View style={styles.labelRow}>
-                <Text style={styles.inputLabel}>DESCRIPTION</Text>
+                <Text style={styles.inputLabel}>Group name</Text>
+                <Text style={styles.inputCount}>{name.length}/80</Text>
+              </View>
+              <View style={styles.inputShell}>
+                <Ionicons color={COLORS.muted} name="people-outline" size={18} />
+                <TextInput accessibilityLabel="Group name" maxLength={80} onChangeText={setName} placeholder="Weekend crew" placeholderTextColor={COLORS.faint} style={styles.input} value={name} />
+              </View>
+              <View style={styles.labelRow}>
+                <Text style={styles.inputLabel}>Description</Text>
                 <Text style={styles.inputCount}>{description.length}/500</Text>
               </View>
               <View style={[styles.inputShell, styles.descriptionShell]}>
-                <TextInput maxLength={500} multiline onChangeText={setDescription} placeholder="What does this group plan together?" placeholderTextColor={COLORS.faint} style={[styles.input, styles.descriptionInput]} textAlignVertical="top" value={description} />
+                <TextInput accessibilityLabel="Description" maxLength={500} multiline onChangeText={setDescription} placeholder="What does this group plan together?" placeholderTextColor={COLORS.faint} style={[styles.input, styles.descriptionInput]} textAlignVertical="top" value={description} />
               </View>
               <View style={styles.labelRow}>
-                <Text style={styles.inputLabel}>TIMEZONE</Text>
-                <Pressable onPress={() => setTimezone(deviceTimezone)}>
+                <Text style={styles.inputLabel}>Timezone</Text>
+                <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setTimezone(deviceTimezone)}>
                   <Text style={styles.deviceTimezone}>Use device</Text>
                 </Pressable>
               </View>
               <View style={styles.inputShell}>
-                <Ionicons color={COLORS.faint} name="globe-outline" size={18} />
-                <TextInput autoCapitalize="none" onChangeText={setTimezone} placeholder="Asia/Manila" placeholderTextColor={COLORS.faint} style={styles.input} value={timezone} />
+                <Ionicons color={COLORS.muted} name="globe-outline" size={18} />
+                <TextInput accessibilityLabel="Timezone" autoCapitalize="none" onChangeText={setTimezone} placeholder="Asia/Manila" placeholderTextColor={COLORS.faint} style={styles.input} value={timezone} />
               </View>
             </ScrollView>
           ) : (
             <View>
-              <Text style={styles.inputLabel}>INVITE CODE</Text>
+              <Text style={styles.inputLabel}>Invite code</Text>
               <View style={[styles.inputShell, styles.codeShell]}>
                 <TextInput
+                  accessibilityLabel="Invite code"
                   autoCapitalize="characters"
                   autoCorrect={false}
                   maxLength={12}
@@ -530,134 +508,189 @@ function GroupActionModal({
             </View>
           )}
 
-          <Text style={styles.inputLabel}>YOUR GROUP COLOR</Text>
+          <Text style={styles.inputLabel}>Your color in this group</Text>
           <View style={styles.colorRow}>
-            {MEMBER_COLORS.map((option) => (
-              <Pressable key={option} onPress={() => setColor(option)} style={[styles.colorOption, { backgroundColor: option }, color === option && styles.colorOptionActive]}>
-                {color === option ? <Ionicons color="#FFFFFF" name="checkmark" size={17} /> : null}
-              </Pressable>
-            ))}
+            {MEMBER_COLORS.map((option, index) => {
+              const active = color === option;
+              return (
+                <PressableScale
+                  accessibilityLabel={`Color ${index + 1}`}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  key={option}
+                  onPress={() => setColor(option)}
+                  scaleTo={0.9}
+                  style={[styles.colorOption, { backgroundColor: option }, active && styles.colorOptionActive]}
+                >
+                  {active ? <Ionicons color="#FFFFFF" name="checkmark" size={18} /> : null}
+                </PressableScale>
+              );
+            })}
           </View>
-          <Text style={styles.colorHint}>This color identifies your events from this group.</Text>
+          <Text style={styles.colorHint}>This color marks your events in this group.</Text>
 
-          <Pressable disabled={saving} onPress={() => void submit()} style={({ pressed }) => [styles.submitButton, saving && styles.submitButtonDisabled, pressed && styles.pressed]}>
-            {saving ? <ActivityIndicator color="#FFFFFF" /> : <Ionicons color="#FFFFFF" name={mode === 'create' ? 'add-circle-outline' : 'enter-outline'} size={19} />}
-            <Text style={styles.submitButtonText}>{saving ? 'Please wait...' : mode === 'create' ? 'Create group' : 'Join group'}</Text>
-          </Pressable>
+          <Button
+            icon={creating ? 'add-circle-outline' : 'enter-outline'}
+            label={saving ? 'Please wait…' : creating ? 'Create group' : 'Join group'}
+            loading={saving}
+            onPress={() => void submit()}
+            style={styles.submitButton}
+          />
         </View>
       </KeyboardAvoidingView>
     </Modal>
   );
 }
 
+function ChoiceCard({
+  active,
+  body,
+  icon,
+  onPress,
+  title,
+}: {
+  active: boolean;
+  body: string;
+  icon: 'people-outline' | 'school-outline';
+  onPress: () => void;
+  title: string;
+}) {
+  return (
+    <PressableScale
+      accessibilityRole="radio"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      scaleTo={0.97}
+      style={[styles.groupTypeCard, active && styles.groupTypeCardActive]}
+    >
+      <View style={[styles.groupTypeIcon, active && styles.groupTypeIconActive]}>
+        <Ionicons color={active ? COLORS.primary : COLORS.muted} name={icon} size={20} />
+      </View>
+      <Text style={[styles.groupTypeTitle, active && styles.groupTypeTitleActive]}>{title}</Text>
+      <Text style={styles.groupTypeBody}>{body}</Text>
+      {active ? (
+        <View style={styles.groupTypeCheck}>
+          <Ionicons color={ON_PRIMARY} name="checkmark" size={13} />
+        </View>
+      ) : null}
+    </PressableScale>
+  );
+}
+
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
   scrollContent: { paddingBottom: 36 },
-  page: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 18, paddingTop: 13 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eyebrow: { color: COLORS.primary, fontSize: 9, fontWeight: '900', letterSpacing: 1.15 },
-  title: { marginTop: 3, color: COLORS.ink, fontSize: 28, fontWeight: '800', letterSpacing: -1 },
-  headerActions: { flexDirection: 'row', gap: 8 },
-  joinButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, backgroundColor: COLORS.surface },
-  createButton: { minHeight: 42, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 14, backgroundColor: COLORS.primary },
-  createButtonText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
-  pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
-  summaryCard: { minHeight: 120, marginTop: 18, padding: 18, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: 25, backgroundColor: COLORS.navy },
-  summaryGlow: { position: 'absolute', width: 160, height: 160, top: -100, right: -35, borderRadius: 80, backgroundColor: '#696BD8', opacity: 0.55 },
-  summaryIcon: { width: 49, height: 49, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: COLORS.primary },
+  page: { width: '100%', maxWidth: PAGE.maxWidth, alignSelf: 'center', paddingHorizontal: PAGE.gutter, paddingTop: 12 },
+  summaryCard: { marginTop: 18, padding: 18, overflow: 'hidden', borderRadius: RADIUS.xxl, boxShadow: SHADOW.md },
+  summaryTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  summaryIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.md, backgroundColor: 'rgba(255,255,255,0.16)' },
   summaryCopy: { flex: 1 },
-  summaryTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
-  summaryBody: { marginTop: 5, color: '#C4C4DF', fontSize: 9, lineHeight: 14 },
-  summaryStats: { minWidth: 52, alignItems: 'center' },
-  summaryStatNumber: { color: '#FFFFFF', fontSize: 23, fontWeight: '900' },
-  summaryStatLabel: { marginTop: 3, color: '#B5B5D5', fontSize: 7, fontWeight: '900', letterSpacing: 0.65 },
-  metricRow: { marginTop: 11, flexDirection: 'row', gap: 9 },
-  metricCard: { flex: 1, minHeight: 70, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: COLORS.line, borderRadius: 19, backgroundColor: COLORS.surface },
-  metricIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13 },
-  metricNumber: { color: COLORS.ink, fontSize: 16, fontWeight: '900' },
-  metricLabel: { marginTop: 2, color: COLORS.faint, fontSize: 7 },
-  searchShell: { minHeight: 49, marginTop: 16, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: COLORS.line, borderRadius: 16, backgroundColor: COLORS.surface },
-  searchInput: { flex: 1, color: COLORS.ink, fontSize: 11 },
-  filters: { paddingTop: 10, paddingBottom: 2, gap: 7 },
-  filterChip: { minHeight: 34, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, backgroundColor: COLORS.surface },
-  filterChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
-  filterText: { color: COLORS.muted, fontSize: 8, fontWeight: '800' },
-  filterTextActive: { color: COLORS.primary },
-  errorBanner: { marginTop: 11, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, backgroundColor: COLORS.redSoft },
-  errorText: { flex: 1, color: COLORS.red, fontSize: 9, lineHeight: 14 },
-  sectionHeader: { marginTop: 23, marginBottom: 11, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  sectionTitle: { color: COLORS.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.35 },
-  sectionSubtitle: { marginTop: 3, color: COLORS.faint, fontSize: 9 },
-  inviteLink: { color: COLORS.primary, fontSize: 9, fontWeight: '800' },
-  loadingState: { minHeight: 260, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  loadingText: { color: COLORS.muted, fontSize: 9 },
-  groupList: { gap: 10 },
-  groupCard: { minHeight: 155, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 22, backgroundColor: COLORS.surface },
-  groupArt: { width: 94, height: 125, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderRadius: 17 },
+  summaryTitle: { ...TYPE.headline, color: '#FFFFFF', fontWeight: '800' },
+  summaryBody: { ...TYPE.subhead, marginTop: 3, color: 'rgba(255,255,255,0.8)', fontWeight: '400' },
+  statsRow: {
+    marginTop: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: RADIUS.md,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  stat: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
+  statValue: { fontSize: 22, lineHeight: 26, color: '#FFFFFF', fontWeight: '800' },
+  statLabel: { ...TYPE.footnote, marginTop: 2, color: 'rgba(255,255,255,0.75)' },
+  statDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.16)' },
+  searchShell: {
+    minHeight: 50,
+    marginTop: 16,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surface,
+  },
+  searchInput: { ...TYPE.body, flex: 1, paddingVertical: 12, color: COLORS.ink },
+  filters: { marginTop: 12 },
+  sectionHeader: { marginTop: 26, marginBottom: 12, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
+  sectionCopy: { flex: 1 },
+  sectionTitle: { ...TYPE.title3, color: COLORS.ink },
+  sectionSubtitle: { ...TYPE.subhead, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  inviteLink: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  inviteLinkText: { ...TYPE.subhead, color: COLORS.primary, fontWeight: '700' },
+  groupList: { gap: 12 },
+  groupCard: {
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
+  },
+  groupTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  groupArt: { width: 64, height: 64, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.lg },
   groupImage: { width: '100%', height: '100%' },
-  artCircleLarge: { position: 'absolute', width: 90, height: 90, top: -44, right: -35, borderRadius: 45 },
-  artCircleSmall: { position: 'absolute', width: 55, height: 55, bottom: -24, left: -19, borderRadius: 28 },
-  groupInitial: { fontSize: 34, fontWeight: '900' },
+  groupInitial: { fontSize: 28, lineHeight: 34, fontWeight: '800' },
   groupContent: { flex: 1 },
-  groupTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  groupName: { flexShrink: 1, color: COLORS.ink, fontSize: 14, fontWeight: '900' },
-  roleBadge: { paddingVertical: 4, paddingHorizontal: 7, borderRadius: 8, backgroundColor: COLORS.elevated },
+  groupTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  groupName: { ...TYPE.headline, flexShrink: 1, color: COLORS.ink },
+  roleBadge: { paddingVertical: 3, paddingHorizontal: 8, borderRadius: RADIUS.pill, backgroundColor: COLORS.elevatedStrong },
   ownerBadge: { backgroundColor: COLORS.primarySoft },
-  roleBadgeText: { color: COLORS.muted, fontSize: 6, fontWeight: '900', textTransform: 'uppercase' },
+  roleBadgeText: { ...TYPE.footnote, color: COLORS.muted, fontWeight: '700' },
   ownerBadgeText: { color: COLORS.primary },
-  groupDescription: { marginTop: 6, color: COLORS.muted, fontSize: 8, lineHeight: 13 },
-  citBadge: { alignSelf: 'flex-start', marginTop: 6, paddingVertical: 3, paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, backgroundColor: COLORS.primarySoft },
-  citBadgeText: { color: COLORS.primary, fontSize: 6, fontWeight: '900', letterSpacing: 0.5 },
-  groupMetaRow: { marginTop: 8, flexDirection: 'row', gap: 12 },
-  metaItem: { maxWidth: 120, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { flexShrink: 1, color: COLORS.faint, fontSize: 7, fontWeight: '700' },
-  nextEvent: { marginTop: 9, minHeight: 27, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 10 },
-  nextEventDot: { width: 6, height: 6, borderRadius: 3 },
-  nextEventText: { flex: 1, fontSize: 7, fontWeight: '800' },
-  emptyState: { minHeight: 300, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 24, backgroundColor: COLORS.surface },
-  emptyIcon: { width: 78, height: 78, alignItems: 'center', justifyContent: 'center', borderRadius: 26, backgroundColor: COLORS.primarySoft },
-  emptyTitle: { marginTop: 17, color: COLORS.ink, fontSize: 16, fontWeight: '900' },
-  emptyBody: { maxWidth: 330, marginTop: 6, color: COLORS.muted, fontSize: 9, lineHeight: 15, textAlign: 'center' },
-  emptyActions: { marginTop: 18, flexDirection: 'row', gap: 8 },
-  emptyPrimary: { minHeight: 42, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 14, backgroundColor: COLORS.primary },
-  emptyPrimaryText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800' },
-  emptySecondary: { minHeight: 42, paddingHorizontal: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 14 },
-  emptySecondaryText: { color: COLORS.primary, fontSize: 9, fontWeight: '800' },
-  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(20,20,35,0.45)' },
-  modalCard: { width: '100%', maxWidth: 720, maxHeight: '90%', alignSelf: 'center', paddingHorizontal: 20, paddingTop: 9, paddingBottom: Platform.OS === 'ios' ? 32 : 22, borderTopLeftRadius: 29, borderTopRightRadius: 29, backgroundColor: COLORS.surface },
-  modalHandle: { width: 38, height: 4, alignSelf: 'center', marginBottom: 16, borderRadius: 2, backgroundColor: COLORS.line },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  modalIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 16 },
+  groupDescription: { ...TYPE.subhead, marginTop: 3, color: COLORS.muted, fontWeight: '400' },
+  groupMetaRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 12, rowGap: 6 },
+  metaItem: { maxWidth: 150, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { ...TYPE.footnote, flexShrink: 1, color: COLORS.muted },
+  citBadge: { paddingVertical: 2, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: RADIUS.pill, backgroundColor: COLORS.primarySoft },
+  citBadgeText: { ...TYPE.footnote, color: COLORS.primary, fontWeight: '700' },
+  nextEvent: { marginTop: 12, minHeight: 38, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: RADIUS.sm },
+  nextEventText: { ...TYPE.subhead, flex: 1, color: COLORS.ink, fontWeight: '600' },
+  nextEventEmpty: { color: COLORS.muted, fontWeight: '400' },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(12, 12, 24, 0.5)' },
+  modalCard: {
+    width: '100%',
+    maxWidth: PAGE.maxWidth,
+    maxHeight: '92%',
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+    borderTopLeftRadius: RADIUS.xxl,
+    borderTopRightRadius: RADIUS.xxl,
+    backgroundColor: COLORS.surface,
+    boxShadow: SHADOW.lg,
+  },
+  modalHandle: { width: 40, height: 5, alignSelf: 'center', marginBottom: 14, borderRadius: 3, backgroundColor: COLORS.line },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  modalIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.md },
   modalHeaderCopy: { flex: 1 },
-  modalTitle: { color: COLORS.ink, fontSize: 18, fontWeight: '900' },
-  modalSubtitle: { marginTop: 3, color: COLORS.muted, fontSize: 9 },
-  modalClose: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: COLORS.elevatedStrong },
-  modalError: { marginTop: 14, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 13, backgroundColor: COLORS.redSoft },
-  modalErrorText: { flex: 1, color: COLORS.red, fontSize: 9, lineHeight: 14 },
-  groupTypeRow: { flexDirection: 'row', gap: 9 },
-  groupTypeCard: { flex: 1, minHeight: 116, padding: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 17, backgroundColor: COLORS.input },
+  modalTitle: { ...TYPE.title3, color: COLORS.ink },
+  modalSubtitle: { ...TYPE.subhead, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  modalScroll: { flexGrow: 0 },
+  groupTypeRow: { flexDirection: 'row', gap: 10 },
+  groupTypeCard: { flex: 1, minHeight: 124, padding: 14, borderWidth: 1.5, borderColor: COLORS.line, borderRadius: RADIUS.lg, backgroundColor: COLORS.input },
   groupTypeCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
-  groupTypeIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: COLORS.elevated },
+  groupTypeIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.sm, backgroundColor: COLORS.elevatedStrong },
   groupTypeIconActive: { backgroundColor: COLORS.surface },
-  groupTypeTitle: { marginTop: 9, color: COLORS.ink, fontSize: 10, fontWeight: '900' },
+  groupTypeTitle: { ...TYPE.callout, marginTop: 10, color: COLORS.ink, fontWeight: '700' },
   groupTypeTitleActive: { color: COLORS.primary },
-  groupTypeBody: { marginTop: 3, color: COLORS.muted, fontSize: 7, lineHeight: 11 },
-  inputLabel: { marginTop: 16, marginBottom: 7, color: COLORS.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
+  groupTypeBody: { ...TYPE.footnote, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  groupTypeCheck: { position: 'absolute', top: 12, right: 12, width: 22, height: 22, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: COLORS.primary },
+  inputLabel: { ...TYPE.subhead, marginTop: 18, marginBottom: 8, color: COLORS.ink, fontWeight: '700' },
   labelRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  inputShell: { minHeight: 51, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, backgroundColor: COLORS.input },
-  input: { flex: 1, paddingVertical: 11, color: COLORS.ink, fontSize: 11 },
-  inputCount: { color: COLORS.faint, fontSize: 7 },
-  descriptionShell: { minHeight: 91, alignItems: 'flex-start' },
-  descriptionInput: { minHeight: 86, lineHeight: 16 },
-  deviceTimezone: { marginBottom: 7, color: COLORS.primary, fontSize: 8, fontWeight: '800' },
-  codeShell: { minHeight: 68, justifyContent: 'center' },
-  codeInput: { flex: 1, color: COLORS.ink, fontSize: 22, fontWeight: '900', letterSpacing: 5, textAlign: 'center' },
-  codeHint: { marginTop: 6, color: COLORS.faint, fontSize: 8, textAlign: 'center' },
-  colorRow: { flexDirection: 'row', gap: 10 },
-  colorOption: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: COLORS.surface, borderRadius: 14 },
-  colorOptionActive: { borderColor: COLORS.line, transform: [{ scale: 1.08 }] },
-  colorHint: { marginTop: 7, color: COLORS.faint, fontSize: 8 },
-  submitButton: { minHeight: 52, marginTop: 21, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 16, backgroundColor: COLORS.primary },
-  submitButtonDisabled: { opacity: 0.65 },
-  submitButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
+  inputShell: { minHeight: 52, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: COLORS.line, borderRadius: RADIUS.md, backgroundColor: COLORS.input },
+  input: { ...TYPE.body, flex: 1, paddingVertical: 12, color: COLORS.ink },
+  inputCount: { ...TYPE.footnote, marginBottom: 8, color: COLORS.muted },
+  descriptionShell: { minHeight: 96, alignItems: 'flex-start' },
+  descriptionInput: { minHeight: 90 },
+  deviceTimezone: { ...TYPE.subhead, marginBottom: 8, color: COLORS.primary, fontWeight: '700' },
+  codeShell: { minHeight: 72, justifyContent: 'center' },
+  codeInput: { flex: 1, color: COLORS.ink, fontSize: 26, fontWeight: '800', letterSpacing: 6, textAlign: 'center' },
+  codeHint: { ...TYPE.footnote, marginTop: 8, color: COLORS.muted, textAlign: 'center' },
+  colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  colorOption: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: COLORS.surface, borderRadius: 22 },
+  colorOptionActive: { borderColor: COLORS.primarySoft, boxShadow: SHADOW.sm },
+  colorHint: { ...TYPE.footnote, marginTop: 8, color: COLORS.muted },
+  submitButton: { marginTop: 22 },
 });

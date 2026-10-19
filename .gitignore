@@ -7,3 +7,6 @@ node_modules/
 
 expo-env.d.ts
 # @end expo-cli
+# Generated web export and Supabase CLI state
+dist/
+supabase/.temp/

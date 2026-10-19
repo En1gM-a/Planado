@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, useFocusEffect, useRouter } from 'expo-router';
+import { MotiView } from 'moti';
 import { type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
@@ -11,9 +12,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PlanadoLoader } from '../../components/PlanadoLoader';
+import { Banner } from '../../components/ui/Banner';
+import { Button } from '../../components/ui/Button';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { PageHeader } from '../../components/ui/Headers';
+import { IconButton } from '../../components/ui/IconButton';
+import { PressableScale } from '../../components/ui/PressableScale';
+import { Reveal } from '../../components/ui/Reveal';
+import { SelectionFill } from '../../components/ui/SelectionFill';
 import { useAuth } from '../../hooks/useAuth';
 import { COLORS } from '../../theme/colors';
+import { MOTION, ON_PRIMARY, PAGE, RADIUS, TYPE } from '../../theme/tokens';
 import {
   getCalendarEvents,
   getMyCalendarGroups,
@@ -24,8 +33,11 @@ import {
 import { supabase } from '../../services/supabase';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
+type CalendarLoadMode = 'initial' | 'refresh' | 'background';
 
-const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const CALENDAR_LOAD_TIMEOUT_MS = 15_000;
+const REALTIME_REFRESH_DELAY_MS = 900;
 
 function startOfDay(date: Date) {
   const value = new Date(date);
@@ -47,10 +59,6 @@ function sameDay(left: Date, right: Date) {
   return dateKey(left) === dateKey(right);
 }
 
-function eventTouchesDay(event: CalendarEvent, day: Date) {
-  return new Date(event.start_time) <= endOfDay(day) && new Date(event.end_time) >= startOfDay(day);
-}
-
 function calendarRange(month: Date) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   const start = new Date(first);
@@ -62,6 +70,47 @@ function calendarRange(month: Date) {
   end.setDate(start.getDate() + 41);
   end.setHours(23, 59, 59, 999);
   return { start, end };
+}
+
+function friendlyCalendarError(error: unknown) {
+  const rawMessage = error instanceof Error
+    ? error.message
+    : typeof error === 'object' && error !== null && 'message' in error
+      ? String(error.message)
+      : '';
+  const normalized = rawMessage.toLowerCase();
+
+  if (
+    normalized.includes('unable to resolve host')
+    || normalized.includes('unknownhost')
+    || normalized.includes('network request failed')
+    || normalized.includes('fetch failed')
+    || normalized.includes('failed to fetch')
+    || normalized.includes('timed out')
+  ) {
+    return 'Planado cannot reach the server right now. Check your internet connection, then try again.';
+  }
+
+  return 'The calendar could not be refreshed. Please try again in a moment.';
+}
+
+function withTimeout<T>(promise: Promise<T>, milliseconds: number) {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Calendar request timed out.'));
+    }, milliseconds);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 function categoryAppearance(category: EventCategory): {
@@ -102,10 +151,11 @@ function eventTime(event: CalendarEvent) {
 export default function CalendarScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const today = useMemo(() => new Date(), []);
+  const [today, setToday] = useState(() => new Date());
   const [visibleMonth, setVisibleMonth] = useState(
     new Date(today.getFullYear(), today.getMonth(), 1),
   );
+  const [monthDirection, setMonthDirection] = useState(0);
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [groups, setGroups] = useState<CalendarGroup[]>([]);
@@ -113,35 +163,46 @@ export default function CalendarScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
+  const loadRequestRef = useRef(0);
+  const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const range = useMemo(() => calendarRange(visibleMonth), [visibleMonth]);
 
-  const loadCalendar = useCallback(async (isRefresh = false) => {
+  const loadCalendar = useCallback(async (mode: CalendarLoadMode = 'initial') => {
     if (!user) return;
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+    const requestId = ++loadRequestRef.current;
+    if (mode === 'refresh') setRefreshing(true);
+    else if (!hasLoadedRef.current) setLoading(true);
     setError(null);
 
     try {
-      const [groupData, eventData] = await Promise.all([
-        getMyCalendarGroups(),
-        getCalendarEvents(range.start, range.end),
-      ]);
+      const [groupData, eventData] = await withTimeout(
+        Promise.all([
+          getMyCalendarGroups(),
+          getCalendarEvents(range.start, range.end),
+        ]),
+        CALENDAR_LOAD_TIMEOUT_MS,
+      );
+      if (requestId !== loadRequestRef.current) return;
       setGroups(groupData);
       setEvents(eventData);
-      if (selectedGroupId && !groupData.some((group) => group.id === selectedGroupId)) {
-        setSelectedGroupId(null);
-      }
+      setSelectedGroupId((currentGroupId) => (
+        currentGroupId && !groupData.some((group) => group.id === currentGroupId)
+          ? null
+          : currentGroupId
+      ));
+      hasLoadedRef.current = true;
     } catch (loadError) {
+      if (requestId !== loadRequestRef.current) return;
       console.error('Could not load calendar:', loadError);
-      setError(
-        loadError instanceof Error ? loadError.message : 'The calendar could not be loaded.',
-      );
+      setError(friendlyCalendarError(loadError));
     } finally {
+      if (requestId !== loadRequestRef.current) return;
       setLoading(false);
       setRefreshing(false);
     }
-  }, [range.end, range.start, selectedGroupId, user]);
+  }, [range.end, range.start, user]);
 
   const loadCalendarRef = useRef(loadCalendar);
   useEffect(() => {
@@ -150,23 +211,40 @@ export default function CalendarScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void loadCalendar();
+      setToday(new Date());
+      void loadCalendar(hasLoadedRef.current ? 'background' : 'initial');
+      return () => {
+        loadRequestRef.current += 1;
+      };
     }, [loadCalendar]),
   );
 
-  useEffect(() => {
-    if (!user) return;
-    const channel = supabase
-      .channel(`calendar:${user.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => {
-        void loadCalendarRef.current(true);
-      })
-      .subscribe();
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      const scheduleRefresh = () => {
+        if (realtimeRefreshTimerRef.current) {
+          clearTimeout(realtimeRefreshTimerRef.current);
+        }
+        realtimeRefreshTimerRef.current = setTimeout(() => {
+          realtimeRefreshTimerRef.current = null;
+          void loadCalendarRef.current('background');
+        }, REALTIME_REFRESH_DELAY_MS);
+      };
+      const channel = supabase
+        .channel(`calendar:${user.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, scheduleRefresh)
+        .subscribe();
 
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [user]);
+      return () => {
+        if (realtimeRefreshTimerRef.current) {
+          clearTimeout(realtimeRefreshTimerRef.current);
+          realtimeRefreshTimerRef.current = null;
+        }
+        void supabase.removeChannel(channel);
+      };
+    }, [user]),
+  );
 
   const calendarDays = useMemo(() => {
     return Array.from({ length: 42 }, (_, index) => {
@@ -191,29 +269,68 @@ export default function CalendarScreen() {
     [events, selectedGroupId],
   );
 
+  const eventsByDate = useMemo(() => {
+    const indexedEvents = new Map<string, CalendarEvent[]>();
+
+    for (const event of filteredEvents) {
+      const eventStart = startOfDay(new Date(event.start_time));
+      const eventEnd = endOfDay(new Date(event.end_time));
+      const cursor = new Date(Math.max(eventStart.getTime(), range.start.getTime()));
+      const lastVisibleDay = Math.min(eventEnd.getTime(), range.end.getTime());
+
+      while (cursor.getTime() <= lastVisibleDay) {
+        const key = dateKey(cursor);
+        const dayEvents = indexedEvents.get(key);
+        if (dayEvents) dayEvents.push(event);
+        else indexedEvents.set(key, [event]);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    }
+
+    return indexedEvents;
+  }, [filteredEvents, range.end, range.start]);
+
   const selectedEvents = useMemo(
-    () => filteredEvents.filter((event) => eventTouchesDay(event, selectedDate)),
-    [filteredEvents, selectedDate],
+    () => eventsByDate.get(dateKey(selectedDate)) ?? [],
+    [eventsByDate, selectedDate],
   );
 
   function moveMonth(offset: number) {
     const next = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + offset, 1);
+    setMonthDirection(offset);
     setVisibleMonth(next);
     setSelectedDate(next);
   }
 
   function goToToday() {
     const now = new Date();
-    setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    setMonthDirection(Math.sign(thisMonth.getTime() - visibleMonth.getTime()));
+    setVisibleMonth(thisMonth);
     setSelectedDate(now);
   }
 
   function selectDay(day: Date) {
     setSelectedDate(day);
     if (day.getMonth() !== visibleMonth.getMonth()) {
-      setVisibleMonth(new Date(day.getFullYear(), day.getMonth(), 1));
+      const nextMonth = new Date(day.getFullYear(), day.getMonth(), 1);
+      setMonthDirection(Math.sign(nextMonth.getTime() - visibleMonth.getTime()));
+      setVisibleMonth(nextMonth);
     }
   }
+
+  function createForSelectedDay() {
+    router.push({
+      pathname: '/event/create',
+      params: {
+        date: dateKey(selectedDate),
+        ...(selectedGroupId ? { groupId: selectedGroupId } : {}),
+      },
+    } as Href);
+  }
+
+  const monthLabel = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(visibleMonth);
+  const selectedIsToday = sameDay(selectedDate, today);
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -222,7 +339,7 @@ export default function CalendarScreen() {
         refreshControl={
           <RefreshControl
             colors={[COLORS.primary]}
-            onRefresh={() => void loadCalendar(true)}
+            onRefresh={() => void loadCalendar('refresh')}
             refreshing={refreshing}
             tintColor={COLORS.primary}
           />
@@ -230,77 +347,64 @@ export default function CalendarScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.page}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.eyebrow}>SHARED TIME</Text>
-              <Text style={styles.title}>Calendar</Text>
-            </View>
-            <Pressable
-              onPress={() => router.push({
-                pathname: '/event/create',
-                params: {
-                  date: dateKey(selectedDate),
-                  ...(selectedGroupId ? { groupId: selectedGroupId } : {}),
-                },
-              } as Href)}
-              style={({ pressed }) => [styles.createButton, pressed && styles.pressed]}
-            >
-              <Ionicons color="#FFFFFF" name="add" size={19} />
-              <Text style={styles.createButtonText}>New event</Text>
-            </Pressable>
-          </View>
+          <PageHeader
+            actions={<Button icon="add" label="New event" onPress={createForSelectedDay} size="sm" />}
+            eyebrow="Shared time"
+            title="Calendar"
+          />
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.groupFilters}
-          >
-            <Pressable
-              onPress={() => setSelectedGroupId(null)}
-              style={[styles.groupChip, !selectedGroupId && styles.groupChipActive]}
+          <Reveal index={1}>
+            <ScrollView
+              contentContainerStyle={styles.groupFilters}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.filterScroller}
             >
-              <View style={[styles.groupDot, { backgroundColor: !selectedGroupId ? '#FFFFFF' : COLORS.primary }]} />
-              <Text style={[styles.groupChipText, !selectedGroupId && styles.groupChipTextActive]}>All plans</Text>
-            </Pressable>
-            {groups.map((group) => {
-              const active = selectedGroupId === group.id;
-              return (
-                <Pressable
+              <FilterChip
+                active={!selectedGroupId}
+                color={COLORS.primary}
+                label="All plans"
+                onPress={() => setSelectedGroupId(null)}
+              />
+              {groups.map((group) => (
+                <FilterChip
+                  active={selectedGroupId === group.id}
+                  color={group.color}
                   key={group.id}
+                  label={group.name}
                   onPress={() => setSelectedGroupId(group.id)}
-                  style={[styles.groupChip, active && styles.groupChipActive]}
-                >
-                  <View style={[styles.groupDot, { backgroundColor: active ? '#FFFFFF' : group.color }]} />
-                  <Text numberOfLines={1} style={[styles.groupChipText, active && styles.groupChipTextActive]}>{group.name}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+                />
+              ))}
+            </ScrollView>
+          </Reveal>
 
-          {error ? (
-            <View style={styles.errorBanner}>
-              <Ionicons color={COLORS.red} name="alert-circle" size={17} />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
+          <Banner
+            action={
+              <Button
+                disabled={loading || refreshing}
+                label="Retry"
+                onPress={() => void loadCalendar('initial')}
+                size="sm"
+                style={styles.retryButton}
+                variant="secondary"
+              />
+            }
+            message={error}
+            title="Calendar is temporarily offline"
+          />
 
-          <View style={styles.calendarCard}>
+          <Reveal index={2} style={styles.calendarCard}>
             <View style={styles.monthHeader}>
-              <Pressable onPress={() => moveMonth(-1)} style={styles.monthArrow}>
-                <Ionicons color={COLORS.ink} name="chevron-back" size={19} />
-              </Pressable>
+              <IconButton icon="chevron-back" label="Previous month" onPress={() => moveMonth(-1)} size={20} tone="ghost" />
               <View style={styles.monthCopy}>
-                <Text style={styles.monthTitle}>
-                  {new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(visibleMonth)}
+                <Text accessibilityLiveRegion="polite" style={styles.monthTitle}>{monthLabel}</Text>
+                <Text style={[styles.monthMeta, loading && styles.monthMetaLoading]}>
+                  {loading
+                    ? 'Loading plans…'
+                    : `${filteredEvents.length} event${filteredEvents.length === 1 ? '' : 's'} in view`}
                 </Text>
-                <Text style={styles.monthMeta}>{filteredEvents.length} event{filteredEvents.length === 1 ? '' : 's'} this view</Text>
               </View>
-              <Pressable onPress={goToToday} style={styles.todayButton}>
-                <Text style={styles.todayButtonText}>Today</Text>
-              </Pressable>
-              <Pressable onPress={() => moveMonth(1)} style={styles.monthArrow}>
-                <Ionicons color={COLORS.ink} name="chevron-forward" size={19} />
-              </Pressable>
+              <IconButton icon="chevron-forward" label="Next month" onPress={() => moveMonth(1)} size={20} tone="ghost" />
             </View>
 
             <View style={styles.weekdayRow}>
@@ -309,64 +413,71 @@ export default function CalendarScreen() {
               ))}
             </View>
 
-            {loading ? (
-              <View style={styles.calendarLoading}>
-                <PlanadoLoader compact message="Loading shared plans..." />
-              </View>
-            ) : (
-              <View style={styles.grid}>
-                {calendarWeeks.map((week, weekIndex) => (
-                  <View key={`week-${weekIndex}`} style={styles.weekRow}>
-                    {week.map((day) => {
-                      const dayEvents = filteredEvents.filter((event) => eventTouchesDay(event, day));
-                      const selected = sameDay(day, selectedDate);
-                      const isToday = sameDay(day, today);
-                      const outsideMonth = day.getMonth() !== visibleMonth.getMonth();
-                      return (
-                        <Pressable
-                          key={dateKey(day)}
-                          onPress={() => selectDay(day)}
-                          style={[styles.dayCell, selected && styles.dayCellSelected]}
-                        >
-                          <View style={[styles.dayNumberCircle, isToday && !selected && styles.todayCircle]}>
-                            <Text
-                              style={[
-                                styles.dayNumber,
-                                outsideMonth && styles.dayNumberOutside,
-                                isToday && !selected && styles.dayNumberToday,
-                                selected && styles.dayNumberSelected,
-                              ]}
-                            >
-                              {day.getDate()}
-                            </Text>
-                          </View>
-                          <View style={styles.eventDots}>
-                            {dayEvents.slice(0, 3).map((event) => (
-                              <View
-                                key={event.id}
-                                style={[
-                                  styles.eventDot,
-                                  { backgroundColor: selected ? '#FFFFFF' : event.color ?? COLORS.primary },
-                                ]}
-                              />
-                            ))}
-                            {dayEvents.length > 3 ? (
-                              <Text style={[styles.moreDots, selected && styles.moreDotsSelected]}>+{dayEvents.length - 3}</Text>
-                            ) : null}
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
+            <MotiView
+              animate={{ opacity: 1, translateX: 0 }}
+              // Only slide after the user changes month, so the first paint is instant.
+              from={monthDirection === 0 ? undefined : { opacity: 0, translateX: monthDirection * 18 }}
+              key={dateKey(visibleMonth)}
+              transition={{ type: 'timing', duration: MOTION.base, easing: MOTION.easeOut }}
+            >
+              {calendarWeeks.map((week, weekIndex) => (
+                <View key={`week-${weekIndex}`} style={styles.weekRow}>
+                  {week.map((day) => {
+                    const dayEvents = eventsByDate.get(dateKey(day)) ?? [];
+                    const selected = sameDay(day, selectedDate);
+                    const isToday = sameDay(day, today);
+                    const outsideMonth = day.getMonth() !== visibleMonth.getMonth();
+                    const dayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(day);
+                    return (
+                      <Pressable
+                        accessibilityLabel={`${dayLabel}${isToday ? ', today' : ''}, ${dayEvents.length} event${dayEvents.length === 1 ? '' : 's'}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        key={dateKey(day)}
+                        onPress={() => selectDay(day)}
+                        style={styles.dayCell}
+                      >
+                        <View style={styles.dayCircle}>
+                          {selected ? <SelectionFill radius={18} /> : null}
+                          {isToday && !selected ? <SelectionFill radius={18} variant="ring" /> : null}
+                          <Text
+                            style={[
+                              styles.dayNumber,
+                              outsideMonth && styles.dayNumberOutside,
+                              isToday && !selected && styles.dayNumberToday,
+                              selected && styles.dayNumberSelected,
+                            ]}
+                          >
+                            {day.getDate()}
+                          </Text>
+                        </View>
+                        <View style={styles.eventDots}>
+                          {dayEvents.slice(0, 3).map((event) => (
+                            <View
+                              key={event.id}
+                              style={[styles.eventDot, { backgroundColor: event.color ?? COLORS.primary }]}
+                            />
+                          ))}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
+            </MotiView>
+
+            {!selectedIsToday || visibleMonth.getMonth() !== today.getMonth() ? (
+              <Pressable accessibilityRole="button" hitSlop={8} onPress={goToToday} style={styles.todayLink}>
+                <Ionicons color={COLORS.primary} name="return-down-back" size={15} />
+                <Text numberOfLines={1} style={styles.todayLinkText}>Back to today</Text>
+              </Pressable>
+            ) : null}
+          </Reveal>
 
           <View style={styles.agendaHeader}>
-            <View>
-              <Text style={styles.agendaTitle}>
-                {sameDay(selectedDate, today)
+            <View style={styles.agendaCopy}>
+              <Text accessibilityRole="header" style={styles.agendaTitle}>
+                {selectedIsToday
                   ? `Today · ${new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(selectedDate)}`
                   : new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(selectedDate)}
               </Text>
@@ -386,68 +497,67 @@ export default function CalendarScreen() {
 
           {selectedEvents.length ? (
             <View style={styles.eventList}>
-              {selectedEvents.map((event) => {
+              {selectedEvents.map((event, index) => {
                 const appearance = categoryAppearance(event.category);
                 const completed = new Date(event.end_time).getTime() < today.getTime();
                 return (
-                  <Pressable
-                    key={event.id}
-                    onPress={() => router.push(`/event/${event.id}` as Href)}
-                    style={({ pressed }) => [
-                      styles.eventCard,
-                      completed && styles.eventCardCompleted,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <View style={[styles.eventAccent, { backgroundColor: event.color ?? appearance.color }]} />
-                    <View style={[styles.eventIcon, { backgroundColor: appearance.background }]}>
-                      <Ionicons color={appearance.color} name={appearance.icon} size={21} />
-                    </View>
-                    <View style={styles.eventCopy}>
-                      <View style={styles.eventTitleRow}>
-                        <Text numberOfLines={1} style={styles.eventTitle}>{event.title}</Text>
-                        {event.is_important ? (
-                          <Ionicons color={COLORS.orange} name="star" size={12} />
-                        ) : null}
-                        {event.visibility === 'private' ? (
-                          <Ionicons color={COLORS.faint} name="lock-closed" size={12} />
-                        ) : null}
+                  <Reveal index={index} key={`${dateKey(selectedDate)}-${event.id}`}>
+                    <PressableScale
+                      accessibilityLabel={`${event.title}, ${eventTime(event)}, ${event.group_name}${completed ? ', done' : ''}`}
+                      onPress={() => router.push(`/event/${event.id}` as Href)}
+                      scaleTo={0.98}
+                      style={[styles.eventCard, completed && styles.eventCardCompleted]}
+                    >
+                      <View style={[styles.eventAccent, { backgroundColor: event.color ?? appearance.color }]} />
+                      <View style={[styles.eventIcon, { backgroundColor: appearance.background }]}>
+                        <Ionicons color={appearance.color} name={appearance.icon} size={21} />
                       </View>
-                      <Text style={[styles.eventTime, completed && styles.eventTimeCompleted]}>
-                        {eventTime(event)}
-                      </Text>
-                      <Text numberOfLines={1} style={styles.eventMeta}>
-                        {event.group_name}{event.location ? `  ·  ${event.location}` : ''}
-                      </Text>
-                    </View>
-                    <View style={styles.eventTrailing}>
+                      <View style={styles.eventCopy}>
+                        <View style={styles.eventTitleRow}>
+                          <Text numberOfLines={1} style={[styles.eventTitle, completed && styles.eventTitleCompleted]}>
+                            {event.title}
+                          </Text>
+                          {event.is_important ? (
+                            <Ionicons accessibilityLabel="Important" color={COLORS.orange} name="star" size={14} />
+                          ) : null}
+                          {event.visibility === 'private' ? (
+                            <Ionicons accessibilityLabel="Private" color={COLORS.faint} name="lock-closed" size={13} />
+                          ) : null}
+                        </View>
+                        <Text style={[styles.eventTime, completed && styles.eventTimeCompleted]}>
+                          {eventTime(event)}
+                        </Text>
+                        <Text numberOfLines={1} style={styles.eventMeta}>
+                          {event.group_name}{event.location ? ` · ${event.location}` : ''}
+                        </Text>
+                      </View>
                       {completed ? (
                         <View style={styles.completedBadge}>
-                          <Ionicons color={COLORS.green} name="checkmark" size={10} />
+                          <Ionicons color={COLORS.green} name="checkmark" size={13} />
                           <Text style={styles.completedBadgeText}>Done</Text>
                         </View>
-                      ) : null}
-                      <Ionicons color={COLORS.faint} name="chevron-forward" size={18} />
-                    </View>
-                  </Pressable>
+                      ) : (
+                        <Ionicons color={COLORS.faint} name="chevron-forward" size={18} />
+                      )}
+                    </PressableScale>
+                  </Reveal>
                 );
               })}
             </View>
           ) : (
-            <View style={styles.emptyAgenda}>
-              <View style={styles.emptyIcon}>
-                <Ionicons color={COLORS.primary} name="calendar-clear-outline" size={29} />
-              </View>
-              <View style={styles.emptyCopy}>
-                <Text style={styles.emptyTitle}>A clear day</Text>
-                <Text style={styles.emptyBody}>Nothing is planned for this date. Enjoy the space or create something together.</Text>
-              </View>
-            </View>
+            <EmptyState
+              body="Nothing is planned for this date. Enjoy the space or plan something together."
+              icon="calendar-clear-outline"
+              key={dateKey(selectedDate)}
+              title="A clear day"
+            >
+              <Button icon="add" label="Plan something" onPress={createForSelectedDay} size="sm" variant="soft" />
+            </EmptyState>
           )}
 
           <View style={styles.legend}>
-            <Ionicons color={COLORS.faint} name="information-circle-outline" size={15} />
-            <Text style={styles.legendText}>Dots show the group color for each event. Select a group above to focus the calendar.</Text>
+            <Ionicons color={COLORS.faint} name="information-circle-outline" size={16} />
+            <Text style={styles.legendText}>Dots use each event’s color. Pick a group above to focus the calendar.</Text>
           </View>
         </View>
       </ScrollView>
@@ -455,75 +565,133 @@ export default function CalendarScreen() {
   );
 }
 
+function FilterChip({
+  active,
+  color,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  color: string;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      scaleTo={0.95}
+      style={[styles.groupChip, active && styles.groupChipActive]}
+    >
+      <View style={[styles.groupDot, { backgroundColor: active ? ON_PRIMARY : color }]} />
+      <Text numberOfLines={1} style={[styles.groupChipText, active && styles.groupChipTextActive]}>{label}</Text>
+    </PressableScale>
+  );
+}
+
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
-  scrollContent: { paddingBottom: 34 },
-  page: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 16, paddingTop: 13 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eyebrow: { color: COLORS.primary, fontSize: 9, fontWeight: '900', letterSpacing: 1.15 },
-  title: { marginTop: 3, color: COLORS.ink, fontSize: 28, fontWeight: '800', letterSpacing: -1 },
-  createButton: { minHeight: 42, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 15, backgroundColor: COLORS.primary },
-  createButtonText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
-  pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
-  groupFilters: { paddingTop: 17, paddingBottom: 4, gap: 8 },
-  groupChip: { maxWidth: 150, minHeight: 37, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, backgroundColor: COLORS.surface },
+  scrollContent: { paddingBottom: 36 },
+  page: { width: '100%', maxWidth: PAGE.maxWidth, alignSelf: 'center', paddingHorizontal: PAGE.gutter, paddingTop: 12 },
+  filterScroller: { marginHorizontal: -PAGE.gutter },
+  groupFilters: { paddingTop: 18, paddingBottom: 2, paddingHorizontal: PAGE.gutter, gap: 8 },
+  groupChip: {
+    maxWidth: 180,
+    minHeight: 40,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surface,
+  },
   groupChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primary },
-  groupDot: { width: 8, height: 8, borderRadius: 4 },
-  groupChipText: { color: COLORS.muted, fontSize: 9, fontWeight: '800' },
-  groupChipTextActive: { color: '#FFFFFF' },
-  errorBanner: { marginTop: 11, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, backgroundColor: COLORS.redSoft },
-  errorText: { flex: 1, color: COLORS.red, fontSize: 9, lineHeight: 14 },
-  calendarCard: { marginTop: 14, padding: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 25, backgroundColor: COLORS.surface },
-  monthHeader: { minHeight: 51, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  monthArrow: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: COLORS.elevated },
-  monthCopy: { flex: 1, paddingLeft: 4 },
-  monthTitle: { color: COLORS.ink, fontSize: 16, fontWeight: '900', letterSpacing: -0.3 },
-  monthMeta: { marginTop: 2, color: COLORS.faint, fontSize: 8 },
-  todayButton: { minHeight: 32, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 11 },
-  todayButtonText: { color: COLORS.primary, fontSize: 8, fontWeight: '900' },
-  weekdayRow: { marginTop: 8, flexDirection: 'row' },
-  weekday: { width: '14.285714%', color: COLORS.faint, fontSize: 7, fontWeight: '900', textAlign: 'center', letterSpacing: 0.45 },
-  calendarLoading: { minHeight: 340, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  loadingText: { color: COLORS.muted, fontSize: 9 },
-  grid: { marginTop: 6 },
+  groupDot: { width: 9, height: 9, borderRadius: 5 },
+  groupChipText: { ...TYPE.subhead, flexShrink: 1, color: COLORS.ink, fontWeight: '600' },
+  groupChipTextActive: { color: ON_PRIMARY, fontWeight: '700' },
+  retryButton: { minHeight: 40 },
+  calendarCard: {
+    marginTop: 14,
+    paddingTop: 8,
+    paddingBottom: 12,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
+  },
+  monthHeader: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  monthCopy: { flex: 1, alignItems: 'center' },
+  monthTitle: { width: '100%', ...TYPE.headline, color: COLORS.ink, fontWeight: '800', textAlign: 'center' },
+  monthMeta: { width: '100%', ...TYPE.footnote, marginTop: 2, color: COLORS.muted, textAlign: 'center' },
+  monthMetaLoading: { color: COLORS.primary, fontWeight: '600' },
+  weekdayRow: { marginTop: 6, marginBottom: 4, flexDirection: 'row' },
+  weekday: { ...TYPE.footnote, flex: 1, color: COLORS.muted, fontWeight: '600', textAlign: 'center' },
   weekRow: { flexDirection: 'row' },
-  dayCell: { flex: 1, height: 54, paddingTop: 4, alignItems: 'center', borderRadius: 14 },
-  dayCellSelected: { backgroundColor: COLORS.primary },
-  dayNumberCircle: { width: 25, height: 25, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
-  todayCircle: { backgroundColor: COLORS.primarySoft },
-  dayNumber: { color: COLORS.ink, fontSize: 10, fontWeight: '800' },
-  dayNumberOutside: { color: COLORS.faint },
-  dayNumberToday: { color: COLORS.primary },
-  dayNumberSelected: { color: '#FFFFFF' },
-  eventDots: { minHeight: 10, marginTop: 3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 },
-  eventDot: { width: 4, height: 4, borderRadius: 2 },
-  moreDots: { color: COLORS.faint, fontSize: 6, fontWeight: '800' },
-  moreDotsSelected: { color: '#DCDCFF' },
-  agendaHeader: { marginTop: 25, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  agendaTitle: { color: COLORS.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.35 },
-  agendaSubtitle: { marginTop: 3, color: COLORS.faint, fontSize: 9 },
-  agendaDateBadge: { width: 45, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: COLORS.primarySoft },
-  agendaDateMonth: { color: COLORS.primary, fontSize: 7, fontWeight: '900', letterSpacing: 0.6 },
-  agendaDateNumber: { marginTop: 1, color: COLORS.primary, fontSize: 17, fontWeight: '900' },
-  eventList: { gap: 9 },
-  eventCard: { minHeight: 84, paddingRight: 13, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.surface },
+  dayCell: { flex: 1, height: 52, paddingTop: 3, alignItems: 'center' },
+  dayCircle: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
+  dayNumber: { ...TYPE.callout, color: COLORS.ink, fontWeight: '600' },
+  dayNumberOutside: { color: COLORS.faint, fontWeight: '400', opacity: 0.6 },
+  dayNumberToday: { color: COLORS.primary, fontWeight: '800' },
+  dayNumberSelected: { color: ON_PRIMARY, fontWeight: '800' },
+  eventDots: { height: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 },
+  eventDot: { width: 5, height: 5, borderRadius: 3 },
+  todayLink: {
+    minHeight: 36,
+    marginTop: 6,
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.primarySoft,
+  },
+  todayLinkText: { ...TYPE.subhead, color: COLORS.primary, fontWeight: '700' },
+  agendaHeader: { marginTop: 28, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  agendaCopy: { flex: 1 },
+  agendaTitle: { ...TYPE.title3, color: COLORS.ink },
+  agendaSubtitle: { ...TYPE.subhead, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  agendaDateBadge: { width: 52, height: 56, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.md, backgroundColor: COLORS.primarySoft },
+  agendaDateMonth: { ...TYPE.footnote, color: COLORS.primary, fontWeight: '800', letterSpacing: 0.6 },
+  agendaDateNumber: { fontSize: 20, lineHeight: 24, color: COLORS.primary, fontWeight: '800' },
+  eventList: { gap: 10 },
+  eventCard: {
+    minHeight: 88,
+    paddingVertical: 12,
+    paddingLeft: 12,
+    paddingRight: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surface,
+  },
   eventCardCompleted: { backgroundColor: COLORS.elevated },
-  eventAccent: { width: 5, alignSelf: 'stretch' },
-  eventIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
-  eventCopy: { flex: 1, paddingVertical: 12 },
+  eventAccent: { width: 4, alignSelf: 'stretch', borderRadius: 2 },
+  eventIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.sm },
+  eventCopy: { flex: 1 },
   eventTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  eventTitle: { flexShrink: 1, color: COLORS.ink, fontSize: 12, fontWeight: '900' },
-  eventTime: { marginTop: 4, color: COLORS.primary, fontSize: 9, fontWeight: '800' },
+  eventTitle: { ...TYPE.headline, flexShrink: 1, color: COLORS.ink },
+  eventTitleCompleted: { color: COLORS.muted },
+  eventTime: { ...TYPE.subhead, marginTop: 3, color: COLORS.primary, fontWeight: '700' },
   eventTimeCompleted: { color: COLORS.green },
-  eventMeta: { marginTop: 4, color: COLORS.muted, fontSize: 8 },
-  eventTrailing: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  completedBadge: { minHeight: 24, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 9, backgroundColor: COLORS.greenSoft },
-  completedBadgeText: { color: COLORS.green, fontSize: 7, fontWeight: '900' },
-  emptyAgenda: { minHeight: 112, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: COLORS.line, borderRadius: 21, backgroundColor: COLORS.surface },
-  emptyIcon: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: COLORS.primarySoft },
-  emptyCopy: { flex: 1 },
-  emptyTitle: { color: COLORS.ink, fontSize: 13, fontWeight: '800' },
-  emptyBody: { marginTop: 5, color: COLORS.muted, fontSize: 9, lineHeight: 14 },
-  legend: { marginTop: 16, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  legendText: { flexShrink: 1, color: COLORS.faint, fontSize: 8, lineHeight: 12, textAlign: 'center' },
+  eventMeta: { ...TYPE.subhead, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  completedBadge: {
+    minHeight: 28,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.greenSoft,
+  },
+  completedBadgeText: { ...TYPE.footnote, color: COLORS.green, fontWeight: '700' },
+  legend: { marginTop: 18, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  legendText: { ...TYPE.footnote, flexShrink: 1, color: COLORS.muted, fontWeight: '400', textAlign: 'center' },
 });

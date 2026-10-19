@@ -1,53 +1,58 @@
 import { DynamicColorIOS, Platform, PlatformColor } from 'react-native';
 
+import { SESSION_SCHEME } from './startupTheme';
+
+// Every text/background pairing used by the UI meets WCAG AA (4.5:1). Keep the
+// keys stable: Android resolves them from res/values*/colors.xml, so a key the
+// installed APK does not define would crash an over-the-air update.
 export const LIGHT_PALETTE = {
-  background: '#F6F6FB',
+  background: '#F5F5FA',
   surface: '#FFFFFF',
-  elevated: '#FAFAFD',
-  elevatedStrong: '#F4F4F8',
-  ink: '#202027',
-  muted: '#777782',
-  faint: '#A1A1AC',
-  line: '#E7E7EF',
+  elevated: '#F8F8FC',
+  elevatedStrong: '#F0F0F6',
+  ink: '#1B1B24',
+  muted: '#5E5E6B',
+  faint: '#6B6B78',
+  line: '#E6E6EF',
   primary: '#5B5CE2',
-  primarySoft: '#EEEEFF',
-  navy: '#282852',
+  primarySoft: '#F1F1FF',
+  navy: '#23234D',
   lavender: '#8587F2',
-  green: '#24966B',
-  greenSoft: '#E9F8F1',
-  orange: '#DE8139',
-  orangeSoft: '#FFF2E7',
-  red: '#C9525C',
-  redSoft: '#FFF0F1',
-  danger: '#C94E59',
-  blue: '#4285D4',
-  blueSoft: '#EAF3FF',
-  input: '#FAFAFD',
+  green: '#1A7A55',
+  greenSoft: '#E7F7EF',
+  orange: '#A85B17',
+  orangeSoft: '#FFF1E5',
+  red: '#B8404D',
+  redSoft: '#FFEFF0',
+  danger: '#B8404D',
+  blue: '#2D6CBC',
+  blueSoft: '#E8F1FF',
+  input: '#F8F8FC',
 } as const;
 
 export const DARK_PALETTE: Record<keyof typeof LIGHT_PALETTE, string> = {
-  background: '#101119',
-  surface: '#1A1C27',
-  elevated: '#222431',
-  elevatedStrong: '#2A2C3A',
-  ink: '#F3F3F8',
-  muted: '#B7B8C5',
-  faint: '#858795',
-  line: '#303342',
-  primary: '#8B8DFF',
-  primarySoft: '#2A2B50',
-  navy: '#252650',
+  background: '#0F1018',
+  surface: '#191B26',
+  elevated: '#212331',
+  elevatedStrong: '#292B3A',
+  ink: '#F2F2F8',
+  muted: '#B4B5C4',
+  faint: '#8C8E9E',
+  line: '#2C2F3E',
+  primary: '#8F91FF',
+  primarySoft: '#272A4D',
+  navy: '#20214A',
   lavender: '#A2A4FF',
-  green: '#57C99A',
-  greenSoft: '#17372D',
-  orange: '#F0A15D',
-  orangeSoft: '#3B2A1D',
-  red: '#FF7D88',
-  redSoft: '#412228',
-  danger: '#FF7D88',
-  blue: '#75A9ED',
-  blueSoft: '#1C3049',
-  input: '#222431',
+  green: '#5BCB9D',
+  greenSoft: '#163A2E',
+  orange: '#F2A867',
+  orangeSoft: '#3A2A1C',
+  red: '#FF8791',
+  redSoft: '#40222A',
+  danger: '#FF8791',
+  blue: '#7FB0F0',
+  blueSoft: '#1B2F48',
+  input: '#212331',
 };
 
 export type PlanadoPalette = typeof LIGHT_PALETTE;
@@ -68,6 +73,8 @@ function adaptiveColor(name: PlanadoColorName): string {
   if (Platform.OS === 'ios') {
     return DynamicColorIOS({ light, dark }) as unknown as string;
   }
+
+  if (SESSION_SCHEME) return SESSION_SCHEME === 'dark' ? dark : light;
 
   return PlatformColor(`@color/planado_${resourceName(name)}`) as unknown as string;
 }

@@ -1,14 +1,21 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Redirect, Tabs } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Redirect, useSegments } from 'expo-router';
+import { Tabs } from 'expo-router/js-tabs';
 
 import { PlanadoLoader } from '../../components/PlanadoLoader';
+import { PlanadoTabBar } from '../../components/PlanadoTabBar';
 import { useAuth } from '../../hooks/useAuth';
+import { usePlanadoTheme } from '../../hooks/usePlanadoTheme';
 import { COLORS } from '../../theme/colors';
 
+const TAB_NAMES = ['home', 'calendar', 'groups', 'profile'] as const;
+
 export default function TabsLayout() {
-  const insets = useSafeAreaInsets();
   const { loading, user } = useAuth();
+  const { revision } = usePlanadoTheme();
+  const segments = useSegments() as string[];
+  // A theme switch remounts the tabs (see ThemeContext); reopen on the same tab.
+  const currentTab = TAB_NAMES.find((name) => name === segments[1]) ?? 'home';
 
   if (loading) {
     return <PlanadoLoader fullScreen message="Opening Planado..." />;
@@ -18,24 +25,14 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      initialRouteName={currentTab}
+      key={revision}
       screenOptions={{
+        animation: 'shift',
         headerShown: false,
-        tabBarHideOnKeyboard: true,
         sceneStyle: { backgroundColor: COLORS.background },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.faint,
-        tabBarStyle: {
-          height: 60 + Math.max(insets.bottom, 8),
-          paddingTop: 8,
-          paddingBottom: Math.max(insets.bottom, 8),
-          borderTopColor: COLORS.line,
-          backgroundColor: COLORS.surface,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '700',
-        },
       }}
+      tabBar={(props) => <PlanadoTabBar {...props} />}
     >
       <Tabs.Screen
         name="home"

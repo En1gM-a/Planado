@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, Redirect, useFocusEffect, useRouter } from 'expo-router';
 import { type ComponentProps, useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,9 +12,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PlanadoAlert as Alert } from '../components/PlanadoAlert';
-import { PlanadoLoader } from '../components/PlanadoLoader';
+import { Banner } from '../components/ui/Banner';
+import { Button } from '../components/ui/Button';
+import { EmptyState } from '../components/ui/EmptyState';
+import { IconButton } from '../components/ui/IconButton';
+import { Reveal } from '../components/ui/Reveal';
+import { SegmentedControl } from '../components/ui/SegmentedControl';
+import { SkeletonList } from '../components/ui/Skeleton';
 import { useAuth } from '../hooks/useAuth';
 import { COLORS } from '../theme/colors';
+import { GRADIENT, gradientStyle, PAGE, RADIUS, SHADOW, TYPE } from '../theme/tokens';
 import {
   deleteNotification,
   getMyNotifications,
@@ -232,32 +238,23 @@ export default function NotificationsScreen() {
     <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
       <View style={styles.page}>
         <View style={styles.header}>
-          <Pressable
-            accessibilityLabel="Go back"
-            onPress={() => router.back()}
-            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-          >
-            <Ionicons color={COLORS.ink} name="arrow-back" size={21} />
-          </Pressable>
+          <IconButton icon="arrow-back" label="Go back" onPress={() => router.back()} />
           <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>STAY IN THE LOOP</Text>
-            <Text style={styles.title}>Notifications</Text>
+            <Text style={styles.eyebrow}>Stay in the loop</Text>
+            <Text accessibilityRole="header" style={styles.title}>Notifications</Text>
           </View>
-          <Pressable
-            disabled={!unreadCount || updatingAll}
+          <Button
+            disabled={!unreadCount}
+            icon="checkmark-done"
+            label="Read all"
+            loading={updatingAll}
             onPress={() => void markEverythingRead()}
-            style={({ pressed }) => [styles.readAllButton, (!unreadCount || updatingAll) && styles.disabled, pressed && styles.pressed]}
-          >
-            {updatingAll ? (
-              <ActivityIndicator color={COLORS.primary} size="small" />
-            ) : (
-              <Ionicons color={unreadCount ? COLORS.primary : COLORS.faint} name="checkmark-done" size={18} />
-            )}
-            <Text style={[styles.readAllText, !unreadCount && styles.readAllTextDisabled]}>Read all</Text>
-          </Pressable>
+            size="sm"
+            variant="secondary"
+          />
         </View>
 
-        <View style={styles.summaryCard}>
+        <Reveal style={[styles.summaryCard, gradientStyle(GRADIENT.hero, GRADIENT.heroFallback)]}>
           <View style={styles.summaryIcon}>
             <Ionicons color="#FFFFFF" name="notifications" size={23} />
           </View>
@@ -266,38 +263,23 @@ export default function NotificationsScreen() {
             <Text style={styles.summaryLabel}>{unreadCount === 1 ? 'unread update' : 'unread updates'}</Text>
           </View>
           <View style={styles.expiryChip}>
-            <Ionicons color="#C9C9F5" name="time-outline" size={13} />
-            <Text style={styles.expiryChipText}>7-day history</Text>
+            <Ionicons color="#FFFFFF" name="time-outline" size={14} />
+            <Text numberOfLines={1} style={styles.expiryChipText}>7-day history</Text>
           </View>
-        </View>
+        </Reveal>
 
-        <View style={styles.filters}>
-          <Pressable
-            onPress={() => setFilter('all')}
-            style={[styles.filterButton, filter === 'all' && styles.filterButtonActive]}
-          >
-            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>All</Text>
-            <View style={[styles.filterCount, filter === 'all' && styles.filterCountActive]}>
-              <Text style={[styles.filterCountText, filter === 'all' && styles.filterCountTextActive]}>{notifications.length}</Text>
-            </View>
-          </Pressable>
-          <Pressable
-            onPress={() => setFilter('unread')}
-            style={[styles.filterButton, filter === 'unread' && styles.filterButtonActive]}
-          >
-            <Text style={[styles.filterText, filter === 'unread' && styles.filterTextActive]}>Unread</Text>
-            <View style={[styles.filterCount, filter === 'unread' && styles.filterCountActive]}>
-              <Text style={[styles.filterCountText, filter === 'unread' && styles.filterCountTextActive]}>{unreadCount}</Text>
-            </View>
-          </Pressable>
-        </View>
+        <Reveal index={1} style={styles.filters}>
+          <SegmentedControl
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: 'All', count: notifications.length },
+              { value: 'unread', label: 'Unread', count: unreadCount },
+            ]}
+            value={filter}
+          />
+        </Reveal>
 
-        {error ? (
-          <View style={styles.errorBanner}>
-            <Ionicons color={COLORS.red} name="alert-circle" size={17} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
+        <Banner message={error} />
 
         <ScrollView
           contentContainerStyle={styles.listContent}
@@ -312,27 +294,28 @@ export default function NotificationsScreen() {
           showsVerticalScrollIndicator={false}
         >
           {loading ? (
-            <View style={styles.loadingState}>
-              <PlanadoLoader compact message="Checking for updates..." />
-            </View>
+            <SkeletonList count={4} label="Checking for updates" />
           ) : sections.length ? (
             sections.map((section) => (
               <View key={section.label} style={styles.section}>
-                <Text style={styles.sectionLabel}>{section.label.toUpperCase()}</Text>
+                <Text accessibilityRole="header" style={styles.sectionLabel}>{section.label}</Text>
                 <View style={styles.notificationGroup}>
                   {section.notifications.map((notification, index) => {
                     const appearance = notificationAppearance(notification.type);
                     const unread = !notification.read_at;
                     return (
-                      <View key={notification.id}>
+                      <Reveal index={index} key={notification.id}>
                         <View style={[styles.notificationRow, unread && styles.notificationRowUnread]}>
                           <Pressable
+                            accessibilityHint="Opens the related event or group"
+                            accessibilityLabel={`${unread ? 'Unread. ' : ''}${notification.title}. ${notification.message}`}
                             accessibilityRole="button"
                             onPress={() => void openNotification(notification)}
-                            style={({ pressed }) => [styles.notificationMain, pressed && styles.pressed]}
+                            style={({ pressed }) => [styles.notificationMain, pressed && styles.rowPressed]}
                           >
                             <View style={[styles.notificationIcon, { backgroundColor: appearance.background }]}>
                               <Ionicons color={appearance.color} name={appearance.icon} size={21} />
+                              {unread ? <View style={styles.unreadDot} /> : null}
                             </View>
                             <View style={styles.notificationCopy}>
                               <View style={styles.notificationTitleRow}>
@@ -341,42 +324,36 @@ export default function NotificationsScreen() {
                               </View>
                               <Text numberOfLines={3} style={styles.notificationMessage}>{notification.message}</Text>
                             </View>
-                            {unread ? <View style={styles.unreadDot} /> : null}
                           </Pressable>
-                          <Pressable
-                            accessibilityLabel="Delete notification"
-                            accessibilityRole="button"
-                            hitSlop={9}
+                          <IconButton
+                            color={COLORS.muted}
+                            icon="trash-outline"
+                            label="Delete notification"
                             onPress={() => confirmDelete(notification)}
-                            style={styles.deleteButton}
-                          >
-                            <Ionicons color={COLORS.faint} name="trash-outline" size={17} />
-                          </Pressable>
+                            size={18}
+                            tone="ghost"
+                          />
                         </View>
                         {index < section.notifications.length - 1 ? <View style={styles.separator} /> : null}
-                      </View>
+                      </Reveal>
                     );
                   })}
                 </View>
               </View>
             ))
           ) : (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyArt}>
-                <Ionicons color={COLORS.primary} name={filter === 'unread' ? 'checkmark-done' : 'notifications-outline'} size={37} />
-                <View style={styles.emptySpark}><Text style={styles.emptySparkText}>✦</Text></View>
-              </View>
-              <Text style={styles.emptyTitle}>{filter === 'unread' ? 'You are all caught up' : 'Nothing new yet'}</Text>
-              <Text style={styles.emptyBody}>
-                {filter === 'unread'
-                  ? 'New group and event updates will appear here when they need your attention.'
-                  : 'Invites, event changes, reminders, and group activity will appear here.'}
-              </Text>
-            </View>
+            <EmptyState
+              body={filter === 'unread'
+                ? 'New group and event updates will appear here when they need your attention.'
+                : 'Invites, event changes, reminders, and group activity will appear here.'}
+              icon={filter === 'unread' ? 'checkmark-done' : 'notifications-outline'}
+              key={filter}
+              title={filter === 'unread' ? 'You’re all caught up' : 'Nothing new yet'}
+            />
           )}
 
           <View style={styles.retentionNote}>
-            <Ionicons color={COLORS.faint} name="shield-checkmark-outline" size={15} />
+            <Ionicons color={COLORS.muted} name="shield-checkmark-outline" size={16} />
             <Text style={styles.retentionText}>Notifications are automatically removed 7 days after they are created.</Text>
           </View>
         </ScrollView>
@@ -387,60 +364,63 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
-  page: { flex: 1, width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 18 },
-  header: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, backgroundColor: COLORS.surface },
+  page: { flex: 1, width: '100%', maxWidth: PAGE.maxWidth, alignSelf: 'center', paddingHorizontal: PAGE.gutter },
+  header: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerCopy: { flex: 1 },
-  eyebrow: { color: COLORS.primary, fontSize: 8, fontWeight: '900', letterSpacing: 1.05 },
-  title: { marginTop: 3, color: COLORS.ink, fontSize: 24, fontWeight: '800', letterSpacing: -0.7 },
-  readAllButton: { minHeight: 39, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, backgroundColor: COLORS.surface },
-  readAllText: { color: COLORS.primary, fontSize: 9, fontWeight: '800' },
-  readAllTextDisabled: { color: COLORS.faint },
-  disabled: { opacity: 0.6 },
-  pressed: { opacity: 0.75, transform: [{ scale: 0.99 }] },
-  summaryCard: { minHeight: 94, padding: 16, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: 23, backgroundColor: '#282852' },
-  summaryIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: COLORS.primary },
+  eyebrow: { ...TYPE.overline, color: COLORS.primary },
+  title: { ...TYPE.title2, marginTop: 2, color: COLORS.ink, fontWeight: '800' },
+  summaryCard: {
+    minHeight: 92,
+    padding: 16,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderRadius: RADIUS.xl,
+    boxShadow: SHADOW.md,
+  },
+  summaryIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.md, backgroundColor: 'rgba(255,255,255,0.16)' },
   summaryCopy: { flex: 1 },
-  summaryNumber: { color: '#FFFFFF', fontSize: 23, fontWeight: '900' },
-  summaryLabel: { marginTop: 1, color: '#BFBFDE', fontSize: 9, fontWeight: '700' },
-  expiryChip: { paddingVertical: 7, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.09)' },
-  expiryChipText: { color: '#C9C9E7', fontSize: 8, fontWeight: '700' },
-  filters: { marginTop: 14, padding: 4, flexDirection: 'row', gap: 4, borderWidth: 1, borderColor: COLORS.line, borderRadius: 17, backgroundColor: COLORS.surface },
-  filterButton: { flex: 1, minHeight: 39, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 13 },
-  filterButtonActive: { backgroundColor: COLORS.primarySoft },
-  filterText: { color: COLORS.muted, fontSize: 10, fontWeight: '800' },
-  filterTextActive: { color: COLORS.primary },
-  filterCount: { minWidth: 20, height: 20, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: COLORS.elevated },
-  filterCountActive: { backgroundColor: COLORS.primary },
-  filterCountText: { color: COLORS.muted, fontSize: 8, fontWeight: '900' },
-  filterCountTextActive: { color: '#FFFFFF' },
-  errorBanner: { marginTop: 11, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 13, backgroundColor: COLORS.redSoft },
-  errorText: { flex: 1, color: COLORS.red, fontSize: 9, lineHeight: 14 },
-  listContent: { flexGrow: 1, paddingTop: 18, paddingBottom: 22 },
-  loadingState: { minHeight: 260, alignItems: 'center', justifyContent: 'center', gap: 11 },
-  loadingText: { color: COLORS.muted, fontSize: 10 },
-  section: { marginBottom: 20 },
-  sectionLabel: { marginBottom: 8, marginLeft: 4, color: COLORS.faint, fontSize: 8, fontWeight: '900', letterSpacing: 0.95 },
-  notificationGroup: { overflow: 'hidden', borderWidth: 1, borderColor: COLORS.line, borderRadius: 21, backgroundColor: COLORS.surface },
-  notificationRow: { minHeight: 92, paddingRight: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface },
-  notificationRowUnread: { backgroundColor: COLORS.elevated },
-  notificationMain: { flex: 1, minHeight: 92, paddingVertical: 14, paddingLeft: 13, flexDirection: 'row', alignItems: 'center', gap: 11 },
-  notificationIcon: { width: 45, height: 45, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
+  summaryNumber: { fontSize: 26, lineHeight: 30, color: '#FFFFFF', fontWeight: '800' },
+  summaryLabel: { ...TYPE.subhead, color: 'rgba(255,255,255,0.82)', fontWeight: '600' },
+  expiryChip: {
+    minHeight: 30,
+    paddingHorizontal: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: RADIUS.pill,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  expiryChipText: { ...TYPE.footnote, color: '#FFFFFF', fontWeight: '600' },
+  filters: { marginTop: 14 },
+  listContent: { flexGrow: 1, paddingTop: 18, paddingBottom: 24 },
+  section: { marginBottom: 22 },
+  sectionLabel: { ...TYPE.overline, marginBottom: 8, marginLeft: 4, color: COLORS.muted },
+  notificationGroup: { overflow: 'hidden', borderWidth: 1, borderColor: COLORS.line, borderRadius: RADIUS.xl, backgroundColor: COLORS.surface },
+  notificationRow: { minHeight: 92, paddingRight: 6, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface },
+  notificationRowUnread: { backgroundColor: COLORS.primarySoft },
+  notificationMain: { flex: 1, minHeight: 92, paddingVertical: 14, paddingLeft: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowPressed: { opacity: 0.7 },
+  notificationIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.md },
+  unreadDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 12,
+    height: 12,
+    borderWidth: 2,
+    borderColor: COLORS.surface,
+    borderRadius: 6,
+    backgroundColor: COLORS.primary,
+  },
   notificationCopy: { flex: 1 },
   notificationTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  notificationTitle: { flex: 1, color: '#55555F', fontSize: 11, fontWeight: '700' },
-  notificationTitleUnread: { color: COLORS.ink, fontWeight: '900' },
-  notificationTime: { color: COLORS.faint, fontSize: 8, fontWeight: '700' },
-  notificationMessage: { marginTop: 5, color: COLORS.muted, fontSize: 9, lineHeight: 14 },
-  unreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.primary },
-  deleteButton: { width: 30, height: 36, alignItems: 'center', justifyContent: 'center' },
-  separator: { height: 1, marginLeft: 69, backgroundColor: COLORS.line },
-  emptyState: { minHeight: 330, paddingHorizontal: 28, alignItems: 'center', justifyContent: 'center' },
-  emptyArt: { width: 92, height: 92, alignItems: 'center', justifyContent: 'center', borderRadius: 30, backgroundColor: COLORS.primarySoft },
-  emptySpark: { position: 'absolute', top: 8, right: 5, width: 26, height: 26, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: COLORS.background, borderRadius: 13, backgroundColor: COLORS.primary },
-  emptySparkText: { color: '#FFFFFF', fontSize: 12 },
-  emptyTitle: { marginTop: 20, color: COLORS.ink, fontSize: 17, fontWeight: '800' },
-  emptyBody: { maxWidth: 320, marginTop: 7, color: COLORS.muted, fontSize: 10, lineHeight: 16, textAlign: 'center' },
-  retentionNote: { marginTop: 4, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  retentionText: { flexShrink: 1, color: COLORS.faint, fontSize: 8, lineHeight: 12, textAlign: 'center' },
+  notificationTitle: { ...TYPE.bodyStrong, flex: 1, color: COLORS.muted, fontWeight: '600' },
+  notificationTitleUnread: { color: COLORS.ink, fontWeight: '800' },
+  notificationTime: { ...TYPE.footnote, color: COLORS.muted, fontWeight: '600' },
+  notificationMessage: { ...TYPE.subhead, marginTop: 3, color: COLORS.muted, fontWeight: '400' },
+  separator: { height: 1, marginLeft: 72, backgroundColor: COLORS.line },
+  retentionNote: { marginTop: 8, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  retentionText: { ...TYPE.footnote, flexShrink: 1, color: COLORS.muted, textAlign: 'center' },
 });

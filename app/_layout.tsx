@@ -2,6 +2,7 @@ import Stack from 'expo-router/stack';
 import { StatusBar } from 'expo-status-bar';
 
 import { MajorUpdateGate } from '../components/MajorUpdateGate';
+import { GoogleCalendarSync } from '../components/GoogleCalendarSync';
 import { PlanadoAlertProvider } from '../components/PlanadoAlert';
 import { WidgetSync } from '../components/WidgetSync';
 import { AuthProvider } from '../context/AuthContext';
@@ -22,6 +23,7 @@ function ThemedRootLayout() {
 
   return (
     <AuthProvider>
+      <GoogleCalendarSync />
       <WidgetSync />
       <PlanadoAlertProvider>
         <StatusBar style={isDark ? 'light' : 'dark'} />

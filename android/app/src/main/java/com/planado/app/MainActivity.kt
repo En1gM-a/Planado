@@ -3,6 +3,8 @@ package com.planado.app
 import android.os.Build
 import android.os.Bundle
 
+import androidx.appcompat.app.AppCompatDelegate
+
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -12,6 +14,9 @@ import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
+    // Apply the theme chosen in Planado before anything is drawn. Switching it
+    // after React starts leaves some views resolved in the other palette.
+    AppCompatDelegate.setDefaultNightMode(ThemePreference.nightMode(this))
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.
     // This is required for expo-splash-screen.

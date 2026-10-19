@@ -1,107 +1,228 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-  android:id="@+id/widget_root"
+  android:id="@android:id/background"
   android:layout_width="match_parent"
   android:layout_height="match_parent"
   android:background="@drawable/planado_widget_background"
-  android:gravity="center_vertical"
-  android:orientation="vertical">
-
-  <TextView
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:text="PLANADO &#8226; TODAY &amp; TOMORROW"
-    android:textColor="#B9BAFF"
-    android:textSize="10sp"
-    android:textStyle="bold" />
-
-  <TextView
-    android:id="@+id/widget_group_name"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="3dp"
-    android:ellipsize="end"
-    android:maxLines="1"
-    android:text="Choose a Planado group"
-    android:textColor="#FFFFFF"
-    android:textSize="18sp"
-    android:textStyle="bold" />
+  android:clipToOutline="true"
+  android:orientation="vertical"
+  android:paddingStart="16dp"
+  android:paddingTop="14dp"
+  android:paddingEnd="12dp"
+  android:paddingBottom="12dp">
 
   <LinearLayout
-    android:id="@+id/widget_important_section"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <FrameLayout
+      android:layout_width="46dp"
+      android:layout_height="48dp">
+
+      <ImageView
+        android:id="@+id/widget_date_tile"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/planado_widget_tile"
+        android:tint="@color/planado_widget_accent_soft" />
+
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <TextView
+          android:id="@+id/widget_date_weekday"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:includeFontPadding="false"
+          android:letterSpacing="0.06"
+          android:text="TUE"
+          android:textColor="@color/planado_widget_accent"
+          android:textSize="11sp"
+          android:textStyle="bold" />
+
+        <TextView
+          android:id="@+id/widget_date_day"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="1dp"
+          android:includeFontPadding="false"
+          android:text="20"
+          android:textColor="@color/planado_widget_accent"
+          android:textSize="19sp"
+          android:textStyle="bold" />
+      </LinearLayout>
+    </FrameLayout>
+
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="12dp"
+      android:layout_weight="1"
+      android:orientation="vertical">
+
+      <TextView
+        android:id="@+id/widget_group_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="Planado"
+        android:textColor="@color/planado_widget_ink"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+      <TextView
+        android:id="@+id/widget_summary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="Today and tomorrow at a glance"
+        android:textColor="@color/planado_widget_muted"
+        android:textSize="12sp" />
+    </LinearLayout>
+
+    <FrameLayout
+      android:id="@+id/widget_add"
+      android:layout_width="44dp"
+      android:layout_height="44dp"
+      android:layout_marginStart="8dp"
+      android:contentDescription="Create event">
+
+      <ImageView
+        android:id="@+id/widget_add_fill"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:layout_gravity="center"
+        android:importantForAccessibility="no"
+        android:src="@drawable/planado_widget_circle"
+        android:tint="@color/planado_widget_accent" />
+
+      <ImageView
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_gravity="center"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ic_planado_widget_add" />
+    </FrameLayout>
+  </LinearLayout>
+
+  <TextView
+    android:id="@+id/widget_setup_hint"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="12dp"
+    android:text="Loading your plans…"
+    android:textColor="@color/planado_widget_muted"
+    android:textSize="13sp" />
+
+  <LinearLayout
+    android:id="@+id/widget_important_list"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginTop="8dp"
     android:orientation="vertical"
+    android:visibility="gone" />
+
+  <LinearLayout
+    android:id="@+id/widget_today_section"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="10dp"
+    android:orientation="vertical"
     android:visibility="gone">
 
     <TextView
+      android:id="@+id/widget_today_label"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
-      android:text="IMPORTANT"
-      android:textColor="#FFD477"
-      android:textSize="9sp"
+      android:letterSpacing="0.08"
+      android:text="TODAY"
+      android:textColor="@color/planado_widget_accent"
+      android:textSize="12sp"
       android:textStyle="bold" />
 
-    <TextView
-      android:id="@+id/widget_important_events"
+    <LinearLayout
+      android:id="@+id/widget_today_list"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
       android:layout_marginTop="2dp"
-      android:ellipsize="end"
-      android:maxLines="3"
-      android:text="★ Important event · 3 days left"
-      android:textColor="#FFF2CE"
-      android:textSize="11sp"
-      android:textStyle="bold" />
+      android:orientation="vertical" />
+
+    <TextView
+      android:id="@+id/widget_today_empty"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="4dp"
+      android:text="Your day is wide open."
+      android:textColor="@color/planado_widget_muted"
+      android:textSize="13sp"
+      android:visibility="gone" />
+
+    <TextView
+      android:id="@+id/widget_today_more"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="14dp"
+      android:text="+2 more"
+      android:textColor="@color/planado_widget_muted"
+      android:textSize="12sp"
+      android:textStyle="bold"
+      android:visibility="gone" />
   </LinearLayout>
-
-  <TextView
-    android:id="@+id/widget_today_label"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="9dp"
-    android:text="TODAY &#8226; AUG 14"
-    android:textColor="#65D6AC"
-    android:textSize="9sp"
-    android:textStyle="bold" />
-
-  <TextView
-    android:id="@+id/widget_today_events"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="2dp"
-    android:ellipsize="end"
-    android:maxLines="4"
-    android:text="Nothing planned today"
-    android:textColor="#FFFFFF"
-    android:textSize="12sp" />
 
   <LinearLayout
     android:id="@+id/widget_tomorrow_section"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="8dp"
-    android:orientation="vertical">
+    android:layout_marginTop="10dp"
+    android:orientation="vertical"
+    android:visibility="gone">
 
     <TextView
       android:id="@+id/widget_tomorrow_label"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
-      android:text="TOMORROW &#8226; AUG 15"
-      android:textColor="#B9BAFF"
-      android:textSize="9sp"
+      android:letterSpacing="0.08"
+      android:text="TOMORROW"
+      android:textColor="@color/planado_widget_muted"
+      android:textSize="12sp"
       android:textStyle="bold" />
 
-    <TextView
-      android:id="@+id/widget_tomorrow_events"
+    <LinearLayout
+      android:id="@+id/widget_tomorrow_list"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
       android:layout_marginTop="2dp"
-      android:ellipsize="end"
-      android:maxLines="4"
-      android:text="Nothing planned tomorrow"
-      android:textColor="#E5E5F7"
-      android:textSize="12sp" />
+      android:orientation="vertical" />
+
+    <TextView
+      android:id="@+id/widget_tomorrow_empty"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="4dp"
+      android:text="Nothing planned"
+      android:textColor="@color/planado_widget_muted"
+      android:textSize="13sp"
+      android:visibility="gone" />
+
+    <TextView
+      android:id="@+id/widget_tomorrow_more"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="14dp"
+      android:text="+1 more"
+      android:textColor="@color/planado_widget_muted"
+      android:textSize="12sp"
+      android:textStyle="bold"
+      android:visibility="gone" />
   </LinearLayout>
 </LinearLayout>

@@ -53,6 +53,38 @@ class PlanadoWidgetModule(
     }
   }
 
+  /** V3 adds structured per-day events (times, colors, ids) and the group accent color. */
+  @ReactMethod
+  fun saveGroupAndPinWidgetV3(
+    groupId: String,
+    groupName: String,
+    todayText: String,
+    tomorrowText: String,
+    snapshotDate: String,
+    scheduleJson: String,
+    importantJson: String,
+    eventsJson: String,
+    accentColor: String,
+    promise: Promise
+  ) {
+    try {
+      saveWidgetData(
+        groupId,
+        groupName,
+        todayText,
+        tomorrowText,
+        snapshotDate,
+        scheduleJson,
+        importantJson,
+        eventsJson,
+        accentColor,
+      )
+      promise.resolve(requestPinWidget())
+    } catch (error: Exception) {
+      promise.reject("PLANADO_WIDGET_ERROR", error.message, error)
+    }
+  }
+
   @ReactMethod
   fun saveGroupWidgetData(
     groupId: String,
@@ -90,6 +122,37 @@ class PlanadoWidgetModule(
     }
   }
 
+  @ReactMethod
+  fun saveGroupWidgetDataV3(
+    groupId: String,
+    groupName: String,
+    todayText: String,
+    tomorrowText: String,
+    snapshotDate: String,
+    scheduleJson: String,
+    importantJson: String,
+    eventsJson: String,
+    accentColor: String,
+    promise: Promise
+  ) {
+    try {
+      saveWidgetData(
+        groupId,
+        groupName,
+        todayText,
+        tomorrowText,
+        snapshotDate,
+        scheduleJson,
+        importantJson,
+        eventsJson,
+        accentColor,
+      )
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("PLANADO_WIDGET_ERROR", error.message, error)
+    }
+  }
+
   private fun requestPinWidget(): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
     val manager = AppWidgetManager.getInstance(reactContext)
@@ -107,6 +170,10 @@ class PlanadoWidgetModule(
     return manager.requestPinAppWidget(provider, null, callback)
   }
 
+  /**
+   * Older app bundles call V1/V2 without structured events; clearing them makes the
+   * widget fall back to the plain-text lines instead of showing a stale snapshot.
+   */
   private fun saveWidgetData(
     groupId: String,
     groupName: String,
@@ -114,7 +181,9 @@ class PlanadoWidgetModule(
     tomorrowText: String,
     snapshotDate: String,
     scheduleJson: String,
-    importantJson: String
+    importantJson: String,
+    eventsJson: String? = null,
+    accentColor: String? = null,
   ) {
     reactContext
       .getSharedPreferences(PlanadoWidgetProvider.PREFS_NAME, 0)
@@ -126,6 +195,8 @@ class PlanadoWidgetModule(
       .putString(PlanadoWidgetProvider.KEY_SNAPSHOT_DATE, snapshotDate)
       .putString(PlanadoWidgetProvider.KEY_SCHEDULE_JSON, scheduleJson)
       .putString(PlanadoWidgetProvider.KEY_IMPORTANT_JSON, importantJson)
+      .putString(PlanadoWidgetProvider.KEY_EVENTS_JSON, eventsJson)
+      .putString(PlanadoWidgetProvider.KEY_ACCENT_COLOR, accentColor?.takeIf { it.isNotBlank() })
       .apply()
 
     PlanadoWidgetProvider.updateAllWidgets(reactContext)

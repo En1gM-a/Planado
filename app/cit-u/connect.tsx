@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -14,14 +13,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 
 import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
+import { PlanadoDateTimePicker } from '../../components/PlanadoDateTimePicker';
 import { PlanadoLoader } from '../../components/PlanadoLoader';
+import { Button } from '../../components/ui/Button';
+import { IconButton } from '../../components/ui/IconButton';
+import { Reveal } from '../../components/ui/Reveal';
 import { useAuth } from '../../hooks/useAuth';
 import { COLORS } from '../../theme/colors';
+import { GRADIENT, gradientStyle, PAGE, RADIUS, SHADOW, TYPE } from '../../theme/tokens';
 import {
   getWildcatScheduleStats,
   importWildcatSchedule,
   parseWildcatWebViewMessage,
   WILDCAT_IMPORT_WEEKS,
+  WILDCAT_MAX_IMPORT_DAYS,
   WILDCAT_ONE_URL,
   type WildcatSchedulePayload,
 } from '../../services/citScheduleService';
@@ -138,6 +143,21 @@ function messageFromError(error: unknown, fallback: string) {
   return fallback;
 }
 
+function dateAfterToday(days: number) {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
+function semesterDateLabel(date: Date) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+}
+
 export default function ConnectCitScheduleScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ groupId?: string | string[] }>();
@@ -150,6 +170,10 @@ export default function ConnectCitScheduleScreen() {
   const [webLoading, setWebLoading] = useState(true);
   const [progress, setProgress] = useState(0);
   const [importing, setImporting] = useState(false);
+  const [endDatePickerVisible, setEndDatePickerVisible] = useState(false);
+  const [semesterEndDate, setSemesterEndDate] = useState(
+    () => dateAfterToday(WILDCAT_IMPORT_WEEKS * 7),
+  );
   const [error, setError] = useState<string | null>(null);
   const [webSessionKey, setWebSessionKey] = useState(0);
   const [forgetOnNextLoad, setForgetOnNextLoad] = useState(true);
@@ -216,7 +240,7 @@ export default function ConnectCitScheduleScreen() {
     );
   }
 
-  async function importSchedule() {
+  async function importSchedule(endDate: Date) {
     if (!schedule || !groupId || !details || importing) return;
     setImporting(true);
     try {
@@ -224,10 +248,16 @@ export default function ConnectCitScheduleScreen() {
         payload: schedule,
         groupId,
         color: details.group.color,
+        endDate,
       });
+      const changes = [
+        `${result.added} added`,
+        `${result.updated} updated`,
+        result.removed ? `${result.removed} old ${result.removed === 1 ? 'entry' : 'entries'} removed` : '',
+      ].filter(Boolean).join(', ');
       Alert.alert(
-        'Schedule imported',
-        `${result.imported} private class events were added or updated for the next ${result.weeks} weeks.`,
+        'Schedule synced',
+        `${result.total} private class events are scheduled through ${semesterDateLabel(endDate)} (${changes}). Importing again will update them without making duplicates.`,
         [
           { text: 'View calendar', onPress: () => router.replace('/(tabs)/calendar' as Href) },
           { text: 'Done', onPress: () => router.back() },
@@ -258,9 +288,7 @@ export default function ConnectCitScheduleScreen() {
           <View style={styles.errorIcon}><Ionicons color={COLORS.red} name="alert-circle-outline" size={30} /></View>
           <Text style={styles.errorTitle}>Connection unavailable</Text>
           <Text style={styles.errorText}>{error ?? 'Open this page from a CIT-U group.'}</Text>
-          <Pressable onPress={() => router.back()} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Back to group</Text>
-          </Pressable>
+          <Button icon="arrow-back" label="Back to group" onPress={() => router.back()} size="md" style={styles.primaryButton} />
         </View>
       </SafeAreaView>
     );
@@ -274,9 +302,7 @@ export default function ConnectCitScheduleScreen() {
           <View style={styles.platformIcon}><Ionicons color={COLORS.primary} name="phone-portrait-outline" size={31} /></View>
           <Text style={styles.errorTitle}>Open the Planado mobile app</Text>
           <Text style={styles.errorText}>The private Wildcat One connection runs only inside the installed Android or iOS app. Your regular Planado calendar still works on the web.</Text>
-          <Pressable onPress={() => router.back()} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Back to group</Text>
-          </Pressable>
+          <Button icon="arrow-back" label="Back to group" onPress={() => router.back()} size="md" style={styles.primaryButton} />
         </View>
       </SafeAreaView>
     );
@@ -287,26 +313,24 @@ export default function ConnectCitScheduleScreen() {
       <SafeAreaView style={styles.safeArea}>
         <Header onBack={() => setSchedule(null)} title="Review schedule" />
         <ScrollView contentContainerStyle={styles.previewContent}>
-          <View style={styles.successHero}>
+          <Reveal style={[styles.successHero, gradientStyle(GRADIENT.hero, GRADIENT.heroFallback)]}>
             <View style={styles.successIcon}><Ionicons color="#FFFFFF" name="checkmark" size={27} /></View>
-            <Text style={styles.successEyebrow}>SCHEDULE FOUND</Text>
+            <Text style={styles.successEyebrow}>Schedule found</Text>
             <Text style={styles.successTitle}>{stats.courses} courses ready</Text>
             <Text style={styles.successBody}>Review the classes below before adding them to {details.group.name}.</Text>
             <View style={styles.statRow}>
-              <Stat value={String(stats.courses)} label="COURSES" />
+              <Stat value={String(stats.courses)} label="Courses" />
               <View style={styles.statDivider} />
-              <Stat value={String(stats.weeklyMeetings)} label="WEEKLY MEETINGS" />
-              <View style={styles.statDivider} />
-              <Stat value={`${WILDCAT_IMPORT_WEEKS}`} label="WEEKS" />
+              <Stat value={String(stats.weeklyMeetings)} label="Weekly meetings" />
             </View>
-          </View>
+          </Reveal>
 
           <View style={styles.privacyNotice}>
             <Ionicons color={COLORS.green} name="lock-closed-outline" size={18} />
             <Text style={styles.privacyText}>These events are private to you. Other group members import their own schedules separately.</Text>
           </View>
 
-          <Text style={styles.sectionLabel}>WEEKLY CLASSES</Text>
+          <Text accessibilityRole="header" style={styles.sectionLabel}>Weekly classes</Text>
           <View style={styles.meetingList}>
             {meetings.map(({ course, meeting }, index) => (
               <View key={`${meeting.courseOfferingScheduleID}-${index}`}>
@@ -319,12 +343,12 @@ export default function ConnectCitScheduleScreen() {
                     </View>
                     <Text numberOfLines={1} style={styles.meetingDescription}>{course.description}</Text>
                     <View style={styles.meetingMetaRow}>
-                      <Ionicons color={COLORS.primary} name="time-outline" size={13} />
+                      <Ionicons color={COLORS.primary} name="time-outline" size={15} />
                       <Text style={styles.meetingMeta}>{meeting.day.map((day) => day.code).join(', ')} · {meeting.timeFrom}–{meeting.timeTo}</Text>
                     </View>
                     {meeting.roomName ? (
                       <View style={styles.meetingMetaRow}>
-                        <Ionicons color={COLORS.faint} name="location-outline" size={13} />
+                        <Ionicons color={COLORS.muted} name="location-outline" size={15} />
                         <Text style={styles.meetingMetaMuted}>{meeting.roomName}</Text>
                       </View>
                     ) : null}
@@ -335,16 +359,48 @@ export default function ConnectCitScheduleScreen() {
             ))}
           </View>
 
-          <Pressable disabled={importing} onPress={() => void importSchedule()} style={({ pressed }) => [styles.importButton, pressed && styles.pressed, importing && styles.disabled]}>
-            {importing ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Ionicons color="#FFFFFF" name="calendar-outline" size={20} />}
-            <Text style={styles.importButtonText}>{importing ? 'Importing schedule...' : 'Import my schedule'}</Text>
-          </Pressable>
-          <Pressable disabled={importing} onPress={forgetWildcatAccount} style={({ pressed }) => [styles.forgetButton, pressed && styles.pressed]}>
-            <Ionicons color={COLORS.red} name="person-remove-outline" size={18} />
-            <Text style={styles.forgetButtonText}>Use another Wildcat account</Text>
-          </Pressable>
-          <Text style={styles.importHint}>Importing again safely updates matching classes instead of duplicating them.</Text>
+          <View style={styles.endDateNotice}>
+            <View style={styles.endDateIcon}>
+              <Ionicons color={COLORS.primary} name="calendar-outline" size={20} />
+            </View>
+            <View style={styles.endDateCopy}>
+              <Text style={styles.endDateTitle}>When does your semester end?</Text>
+              <Text style={styles.endDateText}>Choose the exact last day. Weekly classes will only be created through that date.</Text>
+            </View>
+          </View>
+
+          <Button
+            icon="calendar-outline"
+            label={importing ? 'Syncing schedule…' : 'Choose end date and import'}
+            loading={importing}
+            onPress={() => setEndDatePickerVisible(true)}
+            style={styles.importButton}
+          />
+          <Button
+            disabled={importing}
+            icon="person-remove-outline"
+            label="Use another Wildcat account"
+            onPress={forgetWildcatAccount}
+            size="md"
+            style={styles.forgetButton}
+            variant="danger"
+          />
+          <Text style={styles.importHint}>Safe to repeat: Planado syncs matching classes and removes stale future entries instead of duplicating them.</Text>
         </ScrollView>
+        <PlanadoDateTimePicker
+          confirmLabel="Import through this date"
+          maximumDate={dateAfterToday(WILDCAT_MAX_IMPORT_DAYS)}
+          minimumDate={dateAfterToday(0)}
+          mode="date"
+          onClose={() => setEndDatePickerVisible(false)}
+          onConfirm={(date) => {
+            setSemesterEndDate(date);
+            void importSchedule(date);
+          }}
+          title="Semester end date"
+          value={semesterEndDate}
+          visible={endDatePickerVisible}
+        />
       </SafeAreaView>
     );
   }
@@ -360,7 +416,7 @@ export default function ConnectCitScheduleScreen() {
         </View>
       </View>
       <Pressable onPress={forgetWildcatAccount} style={({ pressed }) => [styles.switchAccountButton, pressed && styles.pressed]}>
-        <Ionicons color={COLORS.red} name="refresh-outline" size={15} />
+        <Ionicons color={COLORS.red} name="refresh-outline" size={17} />
         <Text style={styles.switchAccountText}>Forget this login and use another account</Text>
       </Pressable>
       {webLoading ? <View style={styles.progressTrack}><View style={[styles.progressBar, { width: `${Math.max(progress * 100, 7)}%` }]} /></View> : null}
@@ -410,13 +466,11 @@ export default function ConnectCitScheduleScreen() {
 function Header({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <View style={styles.header}>
-      <Pressable hitSlop={8} onPress={onBack} style={styles.headerButton}>
-        <Ionicons color={COLORS.ink} name="arrow-back" size={22} />
-      </Pressable>
-      <Text numberOfLines={1} style={styles.headerTitle}>{title}</Text>
+      <IconButton icon="arrow-back" label="Go back" onPress={onBack} />
+      <Text accessibilityRole="header" numberOfLines={1} style={styles.headerTitle}>{title}</Text>
       <View style={styles.secureBadge}>
-        <Ionicons color={COLORS.green} name="lock-closed" size={11} />
-        <Text style={styles.secureBadgeText}>PRIVATE</Text>
+        <Ionicons color={COLORS.green} name="lock-closed" size={13} />
+        <Text style={styles.secureBadgeText}>Private</Text>
       </View>
     </View>
   );
@@ -433,62 +487,110 @@ function Stat({ value, label }: { value: string; label: string }) {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
-  header: { minHeight: 62, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: COLORS.line, backgroundColor: COLORS.surface },
-  headerButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, backgroundColor: COLORS.surface },
-  headerTitle: { flex: 1, color: COLORS.ink, fontSize: 16, fontWeight: '900' },
-  secureBadge: { paddingVertical: 6, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, backgroundColor: COLORS.greenSoft },
-  secureBadgeText: { color: COLORS.green, fontSize: 7, fontWeight: '900', letterSpacing: 0.5 },
+  header: {
+    minHeight: 68,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.line,
+    backgroundColor: COLORS.surface,
+  },
+  headerTitle: { ...TYPE.headline, flex: 1, color: COLORS.ink, fontWeight: '800' },
+  secureBadge: { minHeight: 30, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: RADIUS.pill, backgroundColor: COLORS.greenSoft },
+  secureBadgeText: { ...TYPE.footnote, color: COLORS.green, fontWeight: '700' },
   centered: { flex: 1, padding: 28, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { marginTop: 11, color: COLORS.muted, fontSize: 11 },
-  errorIcon: { width: 62, height: 62, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: COLORS.redSoft },
-  platformIcon: { width: 62, height: 62, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: COLORS.primarySoft },
-  errorTitle: { marginTop: 17, color: COLORS.ink, fontSize: 20, fontWeight: '900', textAlign: 'center' },
-  errorText: { maxWidth: 410, marginTop: 8, color: COLORS.muted, fontSize: 11, lineHeight: 17, textAlign: 'center' },
-  primaryButton: { minHeight: 48, marginTop: 20, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: COLORS.primary },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
-  browserNotice: { margin: 12, padding: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 9, borderRadius: 16, backgroundColor: COLORS.greenSoft },
+  errorIcon: { width: 68, height: 68, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.lg, backgroundColor: COLORS.redSoft },
+  platformIcon: { width: 68, height: 68, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.lg, backgroundColor: COLORS.primarySoft },
+  errorTitle: { width: '100%', ...TYPE.title3, marginTop: 18, color: COLORS.ink, textAlign: 'center' },
+  errorText: { width: '100%', ...TYPE.body, maxWidth: 410, marginTop: 8, color: COLORS.muted, textAlign: 'center' },
+  primaryButton: { marginTop: 22 },
+  browserNotice: { margin: 12, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: RADIUS.md, backgroundColor: COLORS.greenSoft },
   browserNoticeCopy: { flex: 1 },
-  browserNoticeTitle: { color: COLORS.green, fontSize: 10, fontWeight: '900' },
-  browserNoticeText: { marginTop: 3, color: '#4D7767', fontSize: 8, lineHeight: 13 },
-  switchAccountButton: { minHeight: 38, marginHorizontal: 12, marginBottom: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.redSoft, borderRadius: 13, backgroundColor: COLORS.redSoft },
-  switchAccountText: { color: COLORS.red, fontSize: 9, fontWeight: '800' },
+  browserNoticeTitle: { ...TYPE.callout, color: COLORS.green, fontWeight: '800' },
+  browserNoticeText: { ...TYPE.subhead, marginTop: 2, color: COLORS.green, fontWeight: '400' },
+  switchAccountButton: {
+    minHeight: 44,
+    marginHorizontal: 12,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.redSoft,
+  },
+  switchAccountText: { ...TYPE.subhead, color: COLORS.red, fontWeight: '700' },
   progressTrack: { height: 3, backgroundColor: COLORS.primarySoft },
-  progressBar: { height: 3, backgroundColor: COLORS.primary },
-  webFrame: { flex: 1, overflow: 'hidden', marginHorizontal: 10, marginBottom: 10, borderWidth: 1, borderColor: COLORS.line, borderRadius: 19, backgroundColor: COLORS.surface },
+  progressBar: { height: 3, borderRadius: 2, backgroundColor: COLORS.primary },
+  webFrame: {
+    flex: 1,
+    overflow: 'hidden',
+    marginHorizontal: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surface,
+  },
   webView: { flex: 1, backgroundColor: COLORS.surface },
   webLoading: { position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surface },
-  previewContent: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 16, paddingBottom: 40 },
-  successHero: { padding: 22, alignItems: 'center', overflow: 'hidden', borderRadius: 27, backgroundColor: '#29285B' },
-  successIcon: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: COLORS.primary },
-  successEyebrow: { marginTop: 14, color: '#B9BAFF', fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
-  successTitle: { marginTop: 5, color: '#FFFFFF', fontSize: 23, fontWeight: '900' },
-  successBody: { maxWidth: 360, marginTop: 7, color: '#C6C6DC', fontSize: 10, lineHeight: 15, textAlign: 'center' },
-  statRow: { width: '100%', marginTop: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.08)' },
+  previewContent: { width: '100%', maxWidth: PAGE.maxWidth, alignSelf: 'center', padding: 16, paddingBottom: 40 },
+  successHero: { padding: 22, alignItems: 'center', overflow: 'hidden', borderRadius: RADIUS.xxl, boxShadow: SHADOW.md },
+  successIcon: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.md, backgroundColor: 'rgba(255,255,255,0.18)' },
+  successEyebrow: { width: '100%', ...TYPE.overline, marginTop: 14, color: '#C9CAFF', textAlign: 'center' },
+  successTitle: { width: '100%', ...TYPE.title2, marginTop: 4, color: '#FFFFFF', fontWeight: '800', textAlign: 'center' },
+  successBody: { width: '100%', ...TYPE.callout, maxWidth: 360, marginTop: 6, color: 'rgba(255,255,255,0.82)', fontWeight: '400', textAlign: 'center' },
+  statRow: { width: '100%', marginTop: 18, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', borderRadius: RADIUS.md, backgroundColor: 'rgba(255,255,255,0.1)' },
   stat: { flex: 1, alignItems: 'center' },
-  statValue: { color: '#FFFFFF', fontSize: 17, fontWeight: '900' },
-  statLabel: { marginTop: 3, color: '#AFAFCB', fontSize: 6, fontWeight: '900', letterSpacing: 0.5, textAlign: 'center' },
-  statDivider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.13)' },
-  privacyNotice: { marginTop: 13, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 16, backgroundColor: COLORS.greenSoft },
-  privacyText: { flex: 1, color: '#4D7767', fontSize: 9, lineHeight: 14 },
-  sectionLabel: { marginTop: 23, marginBottom: 9, color: COLORS.faint, fontSize: 8, fontWeight: '900', letterSpacing: 0.9 },
-  meetingList: { overflow: 'hidden', borderWidth: 1, borderColor: COLORS.line, borderRadius: 22, backgroundColor: COLORS.surface },
-  meetingRow: { padding: 13, flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
-  courseIcon: { width: 43, height: 43, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: COLORS.primarySoft },
-  courseInitial: { color: COLORS.primary, fontSize: 17, fontWeight: '900' },
+  statValue: { fontSize: 22, lineHeight: 26, color: '#FFFFFF', fontWeight: '800' },
+  statLabel: { width: '100%', ...TYPE.footnote, marginTop: 2, color: 'rgba(255,255,255,0.75)', textAlign: 'center' },
+  statDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.16)' },
+  privacyNotice: { marginTop: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: RADIUS.md, backgroundColor: COLORS.greenSoft },
+  privacyText: { ...TYPE.subhead, flex: 1, color: COLORS.green, fontWeight: '500' },
+  sectionLabel: { ...TYPE.overline, marginTop: 26, marginBottom: 10, color: COLORS.muted },
+  meetingList: { overflow: 'hidden', borderWidth: 1, borderColor: COLORS.line, borderRadius: RADIUS.xl, backgroundColor: COLORS.surface },
+  meetingRow: { padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  courseIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.md, backgroundColor: COLORS.primarySoft },
+  courseInitial: { ...TYPE.title3, color: COLORS.primary, fontWeight: '800' },
   meetingCopy: { flex: 1 },
-  meetingTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  meetingTitle: { flexShrink: 1, color: COLORS.ink, fontSize: 11, fontWeight: '900' },
-  typeBadge: { paddingVertical: 3, paddingHorizontal: 6, overflow: 'hidden', color: COLORS.primary, fontSize: 6, fontWeight: '900', borderRadius: 7, backgroundColor: COLORS.primarySoft },
-  meetingDescription: { marginTop: 3, color: COLORS.muted, fontSize: 8 },
-  meetingMetaRow: { marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  meetingMeta: { color: COLORS.ink, fontSize: 8, fontWeight: '700' },
-  meetingMetaMuted: { color: COLORS.muted, fontSize: 8 },
-  separator: { height: 1, marginLeft: 67, backgroundColor: COLORS.line },
-  importButton: { minHeight: 54, marginTop: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 18, backgroundColor: COLORS.primary },
-  importButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
-  forgetButton: { minHeight: 47, marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderColor: COLORS.redSoft, borderRadius: 16, backgroundColor: COLORS.redSoft },
-  forgetButtonText: { color: COLORS.red, fontSize: 10, fontWeight: '900' },
-  importHint: { marginTop: 8, color: COLORS.faint, fontSize: 8, lineHeight: 12, textAlign: 'center' },
-  pressed: { opacity: 0.77, transform: [{ scale: 0.99 }] },
-  disabled: { opacity: 0.62 },
+  meetingTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  meetingTitle: { ...TYPE.headline, flexShrink: 1, color: COLORS.ink },
+  typeBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    overflow: 'hidden',
+    color: COLORS.primary,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.primarySoft,
+  },
+  meetingDescription: { ...TYPE.subhead, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  meetingMetaRow: { marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  meetingMeta: { ...TYPE.subhead, color: COLORS.ink, fontWeight: '600' },
+  meetingMetaMuted: { ...TYPE.subhead, color: COLORS.muted, fontWeight: '400' },
+  separator: { height: 1, marginLeft: 72, backgroundColor: COLORS.line },
+  endDateNotice: {
+    marginTop: 18,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surface,
+  },
+  endDateIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.md, backgroundColor: COLORS.primarySoft },
+  endDateCopy: { flex: 1 },
+  endDateTitle: { ...TYPE.headline, color: COLORS.ink },
+  endDateText: { ...TYPE.subhead, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  importButton: { marginTop: 12 },
+  forgetButton: { marginTop: 10 },
+  importHint: { ...TYPE.footnote, marginTop: 10, color: COLORS.muted, textAlign: 'center' },
+  pressed: { opacity: 0.75 },
 });

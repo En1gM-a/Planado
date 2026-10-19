@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/important_root"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:layout_marginTop="4dp"
+  android:background="@drawable/planado_widget_chip"
+  android:gravity="center_vertical"
+  android:minHeight="32dp"
+  android:orientation="horizontal"
+  android:paddingStart="10dp"
+  android:paddingTop="5dp"
+  android:paddingEnd="5dp"
+  android:paddingBottom="5dp">
+
+  <ImageView
+    android:layout_width="16dp"
+    android:layout_height="16dp"
+    android:importantForAccessibility="no"
+    android:src="@drawable/ic_planado_widget_star" />
+
+  <TextView
+    android:id="@+id/important_title"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="8dp"
+    android:layout_weight="1"
+    android:ellipsize="end"
+    android:maxLines="1"
+    android:text="Important event"
+    android:textColor="@color/planado_widget_ink"
+    android:textSize="13sp"
+    android:textStyle="bold" />
+
+  <TextView
+    android:id="@+id/important_countdown"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="8dp"
+    android:background="@drawable/planado_widget_pill"
+    android:paddingStart="9dp"
+    android:paddingTop="3dp"
+    android:paddingEnd="9dp"
+    android:paddingBottom="3dp"
+    android:text="3 days"
+    android:textColor="@color/planado_widget_important"
+    android:textSize="12sp"
+    android:textStyle="bold" />
+</LinearLayout>

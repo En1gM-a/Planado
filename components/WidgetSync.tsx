@@ -11,6 +11,7 @@ export function WidgetSync() {
 
   useEffect(() => {
     if (Platform.OS !== 'android' || !user) return;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     const refresh = () => {
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
@@ -21,19 +22,22 @@ export function WidgetSync() {
       }, 600);
     };
 
-    refresh();
+    const startupTimer = setTimeout(() => {
+      refresh();
+      channel = supabase
+        .channel(`widget-sync:${user.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, refresh)
+        .subscribe();
+    }, 2_500);
     const appStateSubscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') refresh();
     });
-    const channel = supabase
-      .channel(`widget-sync:${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, refresh)
-      .subscribe();
 
     return () => {
+      clearTimeout(startupTimer);
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
       appStateSubscription.remove();
-      void supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [user]);
 

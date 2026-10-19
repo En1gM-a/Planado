@@ -22,7 +22,8 @@ export type PlanadoNotification = {
   created_at: string;
 };
 
-async function requireUser() {
+async function requireUser(knownUserId?: string) {
+  if (knownUserId) return { id: knownUserId };
   const user = await getCurrentUser();
   if (!user) throw new Error('You must be signed in to view notifications.');
   return user;
@@ -58,8 +59,8 @@ export async function getMyNotifications() {
   return (data ?? []) as PlanadoNotification[];
 }
 
-export async function getMyUnreadNotificationCount() {
-  const user = await requireUser();
+export async function getMyUnreadNotificationCount(knownUserId?: string) {
+  const user = await requireUser(knownUserId);
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { count, error } = await supabase
     .from('notifications')

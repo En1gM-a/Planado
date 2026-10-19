@@ -1,37 +1,59 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useMemo, useState } from 'react';
+import { MotiText, MotiView } from 'moti';
+import { type Dispatch, type SetStateAction, useMemo, useState } from 'react';
 import {
   Modal,
   Pressable,
-  ScrollView,
+  type StyleProp,
   StyleSheet,
   Text,
+  type TextStyle,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
-import { COLORS } from '../theme/colors';
+import { usePlanadoTheme } from '../hooks/usePlanadoTheme';
+import { COLORS, DARK_PALETTE, LIGHT_PALETTE } from '../theme/colors';
+import { gradientStyle, MOTION, ON_PRIMARY, RADIUS, SHADOW, TYPE } from '../theme/tokens';
+import { Button } from './ui/Button';
+import { IconButton } from './ui/IconButton';
+import { ModalCard } from './ui/motion';
+import { PressableScale } from './ui/PressableScale';
+import { SelectionFill } from './ui/SelectionFill';
+import { WHEEL_BAND_TOP, WHEEL_ROW, WHEEL_ROWS, WheelColumn, type WheelOption } from './ui/WheelColumn';
 
 type PickerMode = 'date' | 'time';
+type IconName = keyof typeof Ionicons.glyphMap;
+type TimePart = 'hour' | 'minute' | 'period';
 
 type PlanadoDateTimePickerProps = {
+  confirmLabel?: string;
+  maximumDate?: Date;
+  minimumDate?: Date;
   mode: PickerMode;
   onClose: () => void;
   onConfirm: (value: Date) => void;
+  /** For an end time: the start it is measured from. Adds duration shortcuts. */
+  relativeTo?: Date;
   title: string;
   value: Date;
   visible: boolean;
 };
 
-const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-const CLOCK_SIZE = 228;
-const CLOCK_CENTER = CLOCK_SIZE / 2;
-const CLOCK_RADIUS = 86;
-const HOUR_SIZE = 38;
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const MINUTE_MS = 60 * 1000;
+const DURATIONS = [30, 60, 90, 120, 180];
+const HOUR_OPTIONS: WheelOption[] = Array.from({ length: 12 }, (_, index) => ({ label: String(index || 12) }));
+const PERIOD_OPTIONS: WheelOption[] = [{ label: 'AM' }, { label: 'PM' }];
 
 function sameDate(left: Date, right: Date) {
   return left.getFullYear() === right.getFullYear()
     && left.getMonth() === right.getMonth()
     && left.getDate() === right.getDate();
+}
+
+function dateOnlyValue(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
 function monthDays(month: Date) {
@@ -61,31 +83,35 @@ function dateLabel(date: Date) {
   }).format(date);
 }
 
-export function PlanadoDateTimePicker({
-  mode,
-  onClose,
-  onConfirm,
-  title,
-  value,
-  visible,
-}: PlanadoDateTimePickerProps) {
-  const [draft, setDraft] = useState(value);
-  const [visibleMonth, setVisibleMonth] = useState(
-    new Date(value.getFullYear(), value.getMonth(), 1),
-  );
+function formatDuration(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (!hours) return `${rest} min`;
+  return rest ? `${hours} hr ${rest} min` : `${hours} hr`;
+}
 
-  useEffect(() => {
-    if (!visible) return;
-    setDraft(new Date(value));
-    setVisibleMonth(new Date(value.getFullYear(), value.getMonth(), 1));
-  }, [value, visible]);
-
-  const days = useMemo(() => monthDays(visibleMonth), [visibleMonth]);
-
-  function confirm() {
-    onConfirm(new Date(draft));
-    onClose();
+/** Five-minute steps, plus any odd minute already in play so it is never rounded away. */
+function minuteStops(value: Date, relativeTo?: Date) {
+  const stops = new Set(Array.from({ length: 12 }, (_, index) => index * 5));
+  stops.add(value.getMinutes());
+  if (relativeTo) {
+    stops.add(relativeTo.getMinutes());
+    stops.add((relativeTo.getMinutes() + 30) % 60);
   }
+  return Array.from(stops).sort((left, right) => left - right);
+}
+
+function withPart(date: Date, part: TimePart, index: number, minutes: number[]) {
+  const next = new Date(date);
+  const hours = next.getHours();
+  if (part === 'hour') next.setHours(index + (hours >= 12 ? 12 : 0));
+  if (part === 'minute') next.setMinutes(minutes[index] ?? 0);
+  if (part === 'period') next.setHours((hours % 12) + (index === 1 ? 12 : 0));
+  return next;
+}
+
+export function PlanadoDateTimePicker(props: PlanadoDateTimePickerProps) {
+  const { onClose, visible } = props;
 
   return (
     <Modal
@@ -97,61 +123,105 @@ export function PlanadoDateTimePicker({
     >
       <View style={styles.overlay}>
         <Pressable accessibilityLabel="Close picker" onPress={onClose} style={StyleSheet.absoluteFill} />
-        <View accessibilityViewIsModal style={styles.card}>
-          <View style={styles.header}>
-            <View style={styles.headerIcon}>
-              <Ionicons color={COLORS.primary} name={mode === 'date' ? 'calendar' : 'time'} size={22} />
-            </View>
-            <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>{mode === 'date' ? 'CHOOSE A DATE' : 'CHOOSE A TIME'}</Text>
-              <Text style={styles.title}>{title}</Text>
-            </View>
-            <Pressable accessibilityLabel="Close" onPress={onClose} style={styles.closeButton}>
-              <Ionicons color={COLORS.muted} name="close" size={19} />
-            </Pressable>
-          </View>
-
-          <View style={styles.selectionPreview}>
-            <Ionicons color={COLORS.primary} name={mode === 'date' ? 'calendar-outline' : 'alarm-outline'} size={18} />
-            <Text style={styles.selectionPreviewText}>{mode === 'date' ? dateLabel(draft) : timeLabel(draft)}</Text>
-          </View>
-
-          {mode === 'date' ? (
-            <CalendarPicker
-              days={days}
-              draft={draft}
-              onChange={setDraft}
-              onMonthChange={setVisibleMonth}
-              visibleMonth={visibleMonth}
-            />
-          ) : (
-            <ClockPicker draft={draft} onChange={setDraft} />
-          )}
-
-          <View style={styles.actions}>
-            <Pressable onPress={onClose} style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </Pressable>
-            <Pressable onPress={confirm} style={({ pressed }) => [styles.confirmButton, pressed && styles.pressed]}>
-              <Ionicons color="#FFFFFF" name="checkmark" size={17} />
-              <Text style={styles.confirmText}>Use this {mode}</Text>
-            </Pressable>
-          </View>
-        </View>
+        {/* Mounted per opening, so every control starts from the current value. */}
+        {visible ? <PickerCard {...props} /> : null}
       </View>
     </Modal>
+  );
+}
+
+function PickerCard({
+  confirmLabel,
+  maximumDate,
+  minimumDate,
+  mode,
+  onClose,
+  onConfirm,
+  relativeTo,
+  title,
+  value,
+}: PlanadoDateTimePickerProps) {
+  const { width: windowWidth } = useWindowDimensions();
+  const [draft, setDraft] = useState(() => new Date(value));
+  const [visibleMonth, setVisibleMonth] = useState(() => new Date(value.getFullYear(), value.getMonth(), 1));
+  const [minutes] = useState(() => minuteStops(value, relativeTo));
+
+  const days = useMemo(() => monthDays(visibleMonth), [visibleMonth]);
+  const draftDateValue = dateOnlyValue(draft);
+  const draftAllowed = mode === 'date'
+    ? (!minimumDate || draftDateValue >= dateOnlyValue(minimumDate))
+      && (!maximumDate || draftDateValue <= dateOnlyValue(maximumDate))
+    : !relativeTo || draft.getTime() >= relativeTo.getTime();
+
+  function confirm() {
+    if (!draftAllowed) return;
+    onConfirm(new Date(draft));
+    onClose();
+  }
+
+  return (
+    <ModalCard style={[styles.card, { width: Math.min(Math.max(windowWidth - 24, 0), 430) }]}>
+      <View style={styles.header}>
+        <View style={styles.headerIcon}>
+          <Ionicons color={COLORS.primary} name={mode === 'date' ? 'calendar' : 'time'} size={22} />
+        </View>
+        <View style={styles.headerCopy}>
+          <Text style={styles.eyebrow}>{mode === 'date' ? 'Choose a date' : 'Choose a time'}</Text>
+          <Text accessibilityRole="header" style={styles.title}>{title}</Text>
+        </View>
+        <IconButton icon="close" label="Close" onPress={onClose} tone="ghost" />
+      </View>
+
+      {mode === 'date' ? (
+        <>
+          <View style={styles.selectionPreview}>
+            <Ionicons color={COLORS.primary} name="calendar-outline" size={18} />
+            <Text accessibilityLiveRegion="polite" numberOfLines={1} style={styles.selectionPreviewText}>
+              {dateLabel(draft)}
+            </Text>
+          </View>
+          <CalendarPicker
+            days={days}
+            draft={draft}
+            maximumDate={maximumDate}
+            minimumDate={minimumDate}
+            onChange={setDraft}
+            onMonthChange={setVisibleMonth}
+            visibleMonth={visibleMonth}
+          />
+        </>
+      ) : (
+        <TimePicker draft={draft} minutes={minutes} onChange={setDraft} relativeTo={relativeTo} />
+      )}
+
+      <View style={styles.actions}>
+        <Button label="Cancel" onPress={onClose} size="md" style={styles.cancelButton} variant="secondary" />
+        <Button
+          disabled={!draftAllowed}
+          icon="checkmark"
+          label={confirmLabel ?? `Use this ${mode}`}
+          onPress={confirm}
+          size="md"
+          style={styles.confirmButton}
+        />
+      </View>
+    </ModalCard>
   );
 }
 
 function CalendarPicker({
   days,
   draft,
+  maximumDate,
+  minimumDate,
   onChange,
   onMonthChange,
   visibleMonth,
 }: {
   days: Date[];
   draft: Date;
+  maximumDate?: Date;
+  minimumDate?: Date;
   onChange: (date: Date) => void;
   onMonthChange: (date: Date) => void;
   visibleMonth: Date;
@@ -174,179 +244,300 @@ function CalendarPicker({
   return (
     <View style={styles.calendar}>
       <View style={styles.monthHeader}>
-        <Pressable accessibilityLabel="Previous month" onPress={() => moveMonth(-1)} style={styles.monthButton}>
-          <Ionicons color={COLORS.ink} name="chevron-back" size={19} />
-        </Pressable>
+        <IconButton icon="chevron-back" label="Previous month" onPress={() => moveMonth(-1)} size={20} tone="ghost" />
         <Text style={styles.monthTitle}>
           {new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(visibleMonth)}
         </Text>
-        <Pressable accessibilityLabel="Next month" onPress={() => moveMonth(1)} style={styles.monthButton}>
-          <Ionicons color={COLORS.ink} name="chevron-forward" size={19} />
-        </Pressable>
+        <IconButton icon="chevron-forward" label="Next month" onPress={() => moveMonth(1)} size={20} tone="ghost" />
       </View>
       <View style={styles.weekdayRow}>
         {WEEKDAYS.map((weekday) => <Text key={weekday} style={styles.weekday}>{weekday}</Text>)}
       </View>
-      <View style={styles.daysGrid}>
-        {days.map((day) => {
-          const selected = sameDate(day, draft);
-          const isToday = sameDate(day, today);
-          const outside = day.getMonth() !== visibleMonth.getMonth();
-          return (
-            <Pressable
-              accessibilityLabel={dateLabel(day)}
-              key={`${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`}
-              onPress={() => chooseDate(day)}
-              style={[styles.day, selected && styles.daySelected]}
-            >
-              <Text style={[
-                styles.dayText,
-                outside && styles.dayTextOutside,
-                isToday && !selected && styles.dayTextToday,
-                selected && styles.dayTextSelected,
-              ]}>
-                {day.getDate()}
-              </Text>
-              {isToday && !selected ? <View style={styles.todayDot} /> : null}
-            </Pressable>
-          );
-        })}
-      </View>
+      <MotiView
+        animate={{ opacity: 1 }}
+        from={{ opacity: 0.4 }}
+        key={`${visibleMonth.getFullYear()}-${visibleMonth.getMonth()}`}
+        transition={{ type: 'timing', duration: MOTION.base }}
+      >
+        {Array.from({ length: 6 }, (_, weekIndex) => (
+          <View key={`week-${weekIndex}`} style={styles.weekRow}>
+            {days.slice(weekIndex * 7, weekIndex * 7 + 7).map((day) => {
+              const selected = sameDate(day, draft);
+              const isToday = sameDate(day, today);
+              const outside = day.getMonth() !== visibleMonth.getMonth();
+              const dayValue = dateOnlyValue(day);
+              const disabled = Boolean(
+                (minimumDate && dayValue < dateOnlyValue(minimumDate))
+                || (maximumDate && dayValue > dateOnlyValue(maximumDate)),
+              );
+              return (
+                <Pressable
+                  accessibilityLabel={dateLabel(day)}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled, selected }}
+                  disabled={disabled}
+                  key={`${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`}
+                  onPress={() => chooseDate(day)}
+                  style={styles.day}
+                >
+                  <View style={[styles.dayCircle, disabled && styles.dayDisabled]}>
+                    {selected ? <SelectionFill radius={20} /> : null}
+                    {isToday && !selected ? <SelectionFill radius={20} variant="ring" /> : null}
+                    <Text style={[
+                      styles.dayText,
+                      outside && styles.dayTextOutside,
+                      isToday && !selected && styles.dayTextToday,
+                      selected && styles.dayTextSelected,
+                    ]}>
+                      {day.getDate()}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
+      </MotiView>
     </View>
   );
 }
 
-function ClockPicker({ draft, onChange }: { draft: Date; onChange: (date: Date) => void }) {
-  const hour24 = draft.getHours();
-  const selectedHour = hour24 % 12 || 12;
-  const isPm = hour24 >= 12;
-  const minuteOptions = useMemo(() => {
-    const values = new Set(Array.from({ length: 12 }, (_, index) => index * 5));
-    values.add(draft.getMinutes());
-    return Array.from(values).sort((left, right) => left - right);
-  }, [draft]);
+function TimePicker({
+  draft,
+  minutes,
+  onChange,
+  relativeTo,
+}: {
+  draft: Date;
+  minutes: number[];
+  onChange: Dispatch<SetStateAction<Date>>;
+  relativeTo?: Date;
+}) {
+  const { isDark } = usePlanadoTheme();
+  const [tick, setTick] = useState<{ animate: boolean; hour: 1 | -1; minute: 1 | -1 }>({
+    animate: false,
+    hour: 1,
+    minute: 1,
+  });
 
-  function chooseHour(hour: number) {
-    const next = new Date(draft);
-    next.setHours((hour % 12) + (isPm ? 12 : 0));
-    onChange(next);
+  const hours = draft.getHours();
+  const hourIndex = hours % 12;
+  const minuteIndex = Math.max(0, minutes.indexOf(draft.getMinutes()));
+  const periodIndex = hours >= 12 ? 1 : 0;
+  const minuteOptions = minutes.map((minute) => ({
+    label: String(minute).padStart(2, '0'),
+    spoken: `${minute} minutes`,
+  }));
+  const hourLabel = HOUR_OPTIONS[hourIndex].label;
+  const minuteLabel = minuteOptions[minuteIndex]?.label ?? '00';
+  const periodLabel = PERIOD_OPTIONS[periodIndex].label;
+
+  const length = relativeTo ? Math.round((draft.getTime() - relativeTo.getTime()) / MINUTE_MS) : null;
+  let caption: { icon: IconName; text: string; danger?: boolean } = { icon: 'calendar-outline', text: dateLabel(draft) };
+  if (relativeTo && length !== null) {
+    if (length < 0) caption = { icon: 'alert-circle', text: `Ends before the ${timeLabel(relativeTo)} start`, danger: true };
+    else if (length === 0) caption = { icon: 'time-outline', text: 'Same time as the start' };
+    else caption = { icon: 'hourglass-outline', text: `Lasts ${formatDuration(length)}` };
   }
 
-  function chooseMinute(minute: number) {
-    const next = new Date(draft);
-    next.setMinutes(minute);
-    onChange(next);
+  // The wheel fades out at the top and bottom edges into the card surface.
+  const surface = isDark ? DARK_PALETTE.surface : LIGHT_PALETTE.surface;
+  const fade = gradientStyle(
+    `linear-gradient(180deg, ${surface}F2 0%, ${surface}00 36%, ${surface}00 64%, ${surface}F2 100%)`,
+    'transparent',
+  );
+
+  function choose(part: TimePart, index: number, direction: 1 | -1) {
+    setTick((current) => (part === 'minute'
+      ? { ...current, animate: true, minute: direction }
+      : { ...current, animate: true, hour: direction }));
+    onChange((current) => withPart(current, part, index, minutes));
   }
 
-  function choosePeriod(period: 'AM' | 'PM') {
-    const next = new Date(draft);
-    if (period === 'PM' && next.getHours() < 12) next.setHours(next.getHours() + 12);
-    if (period === 'AM' && next.getHours() >= 12) next.setHours(next.getHours() - 12);
-    onChange(next);
+  function chooseLength(target: Date) {
+    const direction = target.getTime() >= draft.getTime() ? 1 : -1;
+    setTick({ animate: true, hour: direction, minute: direction });
+    onChange(new Date(target));
   }
 
   return (
-    <View style={styles.clockSection}>
-      <View style={styles.periodRow}>
-        {(['AM', 'PM'] as const).map((period) => {
-          const active = period === (isPm ? 'PM' : 'AM');
-          return (
-            <Pressable key={period} onPress={() => choosePeriod(period)} style={[styles.periodButton, active && styles.periodButtonActive]}>
-              <Text style={[styles.periodText, active && styles.periodTextActive]}>{period}</Text>
-            </Pressable>
-          );
-        })}
+    <View>
+      <View
+        accessibilityLabel={`${hourLabel}:${minuteLabel} ${periodLabel}. ${caption.text}`}
+        accessible
+        style={styles.readout}
+      >
+        <View style={styles.readoutTime}>
+          <TickText
+            animate={tick.animate}
+            direction={tick.hour}
+            key={`hour-${hourLabel}`}
+            style={styles.readoutDigits}
+            value={hourLabel}
+          />
+          <Text style={styles.readoutDigits}>:</Text>
+          <TickText
+            animate={tick.animate}
+            direction={tick.minute}
+            key={`minute-${minuteLabel}`}
+            style={styles.readoutDigits}
+            value={minuteLabel}
+          />
+          <TickText
+            animate={tick.animate}
+            direction={tick.hour}
+            key={`period-${periodLabel}`}
+            style={styles.readoutPeriod}
+            value={periodLabel}
+          />
+        </View>
+        <View style={styles.readoutCaption}>
+          <Ionicons color={caption.danger ? COLORS.red : COLORS.muted} name={caption.icon} size={15} />
+          <Text numberOfLines={1} style={[styles.readoutCaptionText, caption.danger && styles.readoutCaptionDanger]}>
+            {caption.text}
+          </Text>
+        </View>
       </View>
 
-      <View style={styles.clockFace}>
-        <View style={styles.clockCenter} />
-        <View
-          style={[
-            styles.clockHand,
-            { transform: [{ rotate: `${selectedHour * 30}deg` }] },
-          ]}
+      <View style={styles.wheels}>
+        <View pointerEvents="none" style={styles.wheelBand} />
+        <WheelColumn
+          label="Hour"
+          loop
+          onChange={(index, direction) => choose('hour', index, direction)}
+          options={HOUR_OPTIONS}
+          selectedIndex={hourIndex}
+          width={76}
         />
-        {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => {
-          const angle = (hour * 30 * Math.PI) / 180;
-          const left = CLOCK_CENTER + CLOCK_RADIUS * Math.sin(angle) - HOUR_SIZE / 2;
-          const top = CLOCK_CENTER - CLOCK_RADIUS * Math.cos(angle) - HOUR_SIZE / 2;
-          const active = hour === selectedHour;
-          return (
-            <Pressable
-              accessibilityLabel={`${hour} o'clock`}
-              key={hour}
-              onPress={() => chooseHour(hour)}
-              style={[styles.hourButton, { left, top }, active && styles.hourButtonActive]}
-            >
-              <Text style={[styles.hourText, active && styles.hourTextActive]}>{hour}</Text>
-            </Pressable>
-          );
-        })}
+        <View importantForAccessibility="no" pointerEvents="none" style={styles.wheelColon}>
+          <Text style={styles.wheelColonText}>:</Text>
+        </View>
+        <WheelColumn
+          label="Minutes"
+          loop
+          onChange={(index, direction) => choose('minute', index, direction)}
+          options={minuteOptions}
+          selectedIndex={minuteIndex}
+          width={76}
+        />
+        <View style={styles.wheelGap} />
+        <WheelColumn
+          compact
+          label="AM or PM"
+          onChange={(index, direction) => choose('period', index, direction)}
+          options={PERIOD_OPTIONS}
+          selectedIndex={periodIndex}
+          width={68}
+        />
+        <View pointerEvents="none" style={[styles.wheelFade, fade]} />
       </View>
 
-      <Text style={styles.minuteLabel}>MINUTES</Text>
-      <ScrollView contentContainerStyle={styles.minuteRow} horizontal showsHorizontalScrollIndicator={false}>
-        {minuteOptions.map((minute) => {
-          const active = draft.getMinutes() === minute;
-          return (
-            <Pressable key={minute} onPress={() => chooseMinute(minute)} style={[styles.minuteButton, active && styles.minuteButtonActive]}>
-              <Text style={[styles.minuteText, active && styles.minuteTextActive]}>{String(minute).padStart(2, '0')}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      {relativeTo ? (
+        <View style={styles.lengths}>
+          <Text style={styles.lengthsLabel}>Duration</Text>
+          <View style={styles.lengthRow}>
+            {DURATIONS.map((option) => {
+              const target = new Date(relativeTo.getTime() + option * MINUTE_MS);
+              const disabled = !sameDate(target, relativeTo);
+              const active = length === option;
+              return (
+                <PressableScale
+                  accessibilityLabel={`Lasts ${formatDuration(option)}`}
+                  accessibilityState={{ disabled, selected: active }}
+                  disabled={disabled}
+                  key={option}
+                  onPress={() => chooseLength(target)}
+                  style={[styles.lengthChip, disabled && styles.lengthChipDisabled]}
+                >
+                  {active ? <SelectionFill color={COLORS.primarySoft} radius={RADIUS.sm} /> : null}
+                  {active ? <SelectionFill radius={RADIUS.sm} variant="ring" /> : null}
+                  <Text numberOfLines={1} style={[styles.lengthText, active && styles.lengthTextActive]}>
+                    {option < 60 ? `${option} min` : `${option / 60} hr`}
+                  </Text>
+                </PressableScale>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
     </View>
+  );
+}
+
+/**
+ * A readout segment that rolls in from the direction the wheel turned. Keyed by
+ * value at the call site, so each new value mounts fresh. `from` is read once:
+ * changing it on a mounted Moti view restarts the view from there.
+ */
+function TickText({
+  animate,
+  direction,
+  style,
+  value,
+}: {
+  animate: boolean;
+  direction: 1 | -1;
+  style: StyleProp<TextStyle>;
+  value: string;
+}) {
+  const [from] = useState(() => (animate ? { opacity: 0, translateY: direction * 10 } : undefined));
+
+  return (
+    <MotiText
+      animate={{ opacity: 1, translateY: 0 }}
+      from={from}
+      style={style}
+      transition={{ type: 'timing', duration: MOTION.base, easing: MOTION.easeOut }}
+    >
+      {value}
+    </MotiText>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(24,24,35,0.62)' },
-  card: { width: '100%', maxWidth: 430, maxHeight: '94%', padding: 18, borderRadius: 28, backgroundColor: COLORS.surface, shadowColor: '#171726', shadowOffset: { width: 0, height: 18 }, shadowOpacity: 0.25, shadowRadius: 32, elevation: 18 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  headerIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: COLORS.primarySoft },
+  overlay: { flex: 1, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(12, 12, 24, 0.6)' },
+  card: { maxWidth: 430, maxHeight: '94%', padding: 18, borderRadius: RADIUS.xxl, backgroundColor: COLORS.surface, boxShadow: SHADOW.lg },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.md, backgroundColor: COLORS.primarySoft },
   headerCopy: { flex: 1 },
-  eyebrow: { color: COLORS.primary, fontSize: 7, fontWeight: '900', letterSpacing: 0.9 },
-  title: { marginTop: 3, color: COLORS.ink, fontSize: 18, fontWeight: '900', letterSpacing: -0.35 },
-  closeButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, backgroundColor: COLORS.elevated },
-  selectionPreview: { minHeight: 48, marginTop: 16, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 15, backgroundColor: COLORS.primarySoft },
-  selectionPreviewText: { color: COLORS.primary, fontSize: 12, fontWeight: '900' },
-  calendar: { marginTop: 12 },
-  monthHeader: { minHeight: 43, flexDirection: 'row', alignItems: 'center' },
-  monthButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: COLORS.elevated },
-  monthTitle: { flex: 1, color: COLORS.ink, fontSize: 14, fontWeight: '900', textAlign: 'center' },
-  weekdayRow: { marginTop: 8, flexDirection: 'row' },
-  weekday: { width: '14.285714%', color: COLORS.faint, fontSize: 7, fontWeight: '900', textAlign: 'center', letterSpacing: 0.45 },
-  daysGrid: { marginTop: 5, flexDirection: 'row', flexWrap: 'wrap' },
-  day: { width: '14.285714%', height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
-  daySelected: { backgroundColor: COLORS.primary },
-  dayText: { color: COLORS.ink, fontSize: 10, fontWeight: '800' },
-  dayTextOutside: { color: COLORS.faint },
-  dayTextToday: { color: COLORS.primary },
-  dayTextSelected: { color: '#FFFFFF' },
-  todayDot: { position: 'absolute', bottom: 5, width: 3, height: 3, borderRadius: 2, backgroundColor: COLORS.primary },
-  clockSection: { alignItems: 'center' },
-  periodRow: { marginTop: 13, flexDirection: 'row', gap: 8 },
-  periodButton: { width: 64, height: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, backgroundColor: COLORS.input },
-  periodButtonActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primary },
-  periodText: { color: COLORS.muted, fontSize: 9, fontWeight: '900' },
-  periodTextActive: { color: '#FFFFFF' },
-  clockFace: { width: CLOCK_SIZE, height: CLOCK_SIZE, marginTop: 10, borderWidth: 1, borderColor: COLORS.line, borderRadius: CLOCK_SIZE / 2, backgroundColor: COLORS.input },
-  clockCenter: { position: 'absolute', zIndex: 2, left: CLOCK_CENTER - 4, top: CLOCK_CENTER - 4, width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.primary },
-  clockHand: { position: 'absolute', zIndex: 1, left: CLOCK_CENTER - 1, top: 35, width: 2, height: CLOCK_CENTER - 35, backgroundColor: '#BDBDFA', transformOrigin: 'bottom' },
-  hourButton: { position: 'absolute', zIndex: 3, width: HOUR_SIZE, height: HOUR_SIZE, alignItems: 'center', justifyContent: 'center', borderRadius: HOUR_SIZE / 2 },
-  hourButtonActive: { backgroundColor: COLORS.primary },
-  hourText: { color: COLORS.ink, fontSize: 11, fontWeight: '900' },
-  hourTextActive: { color: '#FFFFFF' },
-  minuteLabel: { alignSelf: 'flex-start', marginTop: 10, color: COLORS.faint, fontSize: 7, fontWeight: '900', letterSpacing: 0.7 },
-  minuteRow: { paddingTop: 7, gap: 7 },
-  minuteButton: { width: 42, height: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, backgroundColor: COLORS.input },
-  minuteButtonActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
-  minuteText: { color: COLORS.muted, fontSize: 9, fontWeight: '900' },
-  minuteTextActive: { color: COLORS.primary },
-  actions: { marginTop: 18, flexDirection: 'row', gap: 9 },
-  cancelButton: { flex: 1, minHeight: 47, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, backgroundColor: COLORS.elevated },
-  cancelText: { color: COLORS.muted, fontSize: 10, fontWeight: '900' },
-  confirmButton: { flex: 1.35, minHeight: 47, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 15, backgroundColor: COLORS.primary },
-  confirmText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
-  pressed: { opacity: 0.74, transform: [{ scale: 0.985 }] },
+  eyebrow: { ...TYPE.overline, color: COLORS.primary },
+  title: { ...TYPE.title3, marginTop: 2, color: COLORS.ink },
+  selectionPreview: { minHeight: 48, marginTop: 16, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: RADIUS.md, backgroundColor: COLORS.primarySoft },
+  selectionPreviewText: { ...TYPE.bodyStrong, color: COLORS.primary, fontWeight: '700' },
+  calendar: { marginTop: 10 },
+  monthHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center' },
+  monthTitle: { ...TYPE.headline, flex: 1, color: COLORS.ink, textAlign: 'center' },
+  weekdayRow: { marginTop: 6, flexDirection: 'row' },
+  weekday: { ...TYPE.footnote, flex: 1, color: COLORS.muted, fontWeight: '600', textAlign: 'center' },
+  weekRow: { flexDirection: 'row' },
+  day: { flex: 1, height: 46, alignItems: 'center', justifyContent: 'center' },
+  dayCircle: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+  dayDisabled: { opacity: 0.3 },
+  dayText: { ...TYPE.callout, color: COLORS.ink, fontWeight: '600' },
+  dayTextOutside: { color: COLORS.faint, fontWeight: '400' },
+  dayTextToday: { color: COLORS.primary, fontWeight: '800' },
+  dayTextSelected: { color: ON_PRIMARY, fontWeight: '800' },
+  readout: { marginTop: 14, alignItems: 'center' },
+  readoutTime: { flexDirection: 'row', alignItems: 'baseline' },
+  readoutDigits: { fontSize: 44, lineHeight: 52, fontWeight: '800', color: COLORS.ink, fontVariant: ['tabular-nums'] },
+  readoutPeriod: { ...TYPE.headline, marginLeft: 8, color: COLORS.primary, fontWeight: '800' },
+  readoutCaption: { marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  readoutCaptionText: { ...TYPE.subhead, color: COLORS.muted },
+  readoutCaptionDanger: { color: COLORS.red, fontWeight: '700' },
+  wheels: { height: WHEEL_ROW * WHEEL_ROWS, marginTop: 12, flexDirection: 'row', justifyContent: 'center' },
+  wheelBand: { position: 'absolute', top: WHEEL_BAND_TOP, right: 0, left: 0, height: WHEEL_ROW, borderRadius: RADIUS.md, backgroundColor: COLORS.primarySoft },
+  wheelColon: { width: 18, alignItems: 'center', justifyContent: 'center' },
+  wheelColonText: { fontSize: 26, lineHeight: 32, marginTop: -3, fontWeight: '800', color: COLORS.primary },
+  wheelGap: { width: 10 },
+  wheelFade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  lengths: { marginTop: 14 },
+  lengthsLabel: { ...TYPE.overline, width: '100%', color: COLORS.muted },
+  lengthRow: { marginTop: 8, flexDirection: 'row', gap: 8 },
+  lengthChip: { flex: 1, minHeight: 44, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: RADIUS.sm },
+  lengthChipDisabled: { opacity: 0.4 },
+  lengthText: { ...TYPE.subhead, color: COLORS.ink, fontWeight: '700' },
+  lengthTextActive: { color: COLORS.primary },
+  actions: { marginTop: 18, flexDirection: 'row', gap: 10 },
+  cancelButton: { flex: 1 },
+  confirmButton: { flex: 1.4 },
 });

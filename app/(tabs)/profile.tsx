@@ -1,8 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -19,11 +18,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
 import { PlanadoLoader } from '../../components/PlanadoLoader';
+import { Banner } from '../../components/ui/Banner';
+import { Button } from '../../components/ui/Button';
+import { PageHeader, SectionHeader } from '../../components/ui/Headers';
+import { IconButton } from '../../components/ui/IconButton';
+import { Reveal } from '../../components/ui/Reveal';
+import { SegmentedControl } from '../../components/ui/SegmentedControl';
 import { useAuth } from '../../hooks/useAuth';
 import { usePlanadoTheme } from '../../hooks/usePlanadoTheme';
 import { getMyProfile, updateMyProfile } from '../../services/authService';
 import { supabase } from '../../services/supabase';
 import { COLORS } from '../../theme/colors';
+import { GRADIENT, gradientStyle, PAGE, RADIUS, SHADOW, TYPE } from '../../theme/tokens';
+
+type IconName = ComponentProps<typeof Ionicons>['name'];
 
 type Profile = {
   id: string;
@@ -44,12 +52,6 @@ type FormState = {
 
 const deviceTimezone =
   Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-
-const THEME_OPTIONS = [
-  { value: 'system', label: 'System', icon: 'phone-portrait-outline' },
-  { value: 'light', label: 'Light', icon: 'sunny-outline' },
-  { value: 'dark', label: 'Dark', icon: 'moon-outline' },
-] as const;
 
 function normalizeUsername(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 30);
@@ -155,6 +157,7 @@ export default function ProfileScreen() {
     .map((part) => part.charAt(0))
     .join('')
     .toUpperCase();
+  const memberSinceYear = profile?.created_at ? new Date(profile.created_at).getFullYear() : null;
 
   function startEditing() {
     if (!profile) return;
@@ -309,28 +312,18 @@ export default function ProfileScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.page}>
-            <View style={styles.topBar}>
-              <View>
-                <Text style={styles.eyebrow}>YOUR SPACE</Text>
-                <Text style={styles.pageTitle}>Profile</Text>
-              </View>
-              {!editing ? (
-                <Pressable
-                  onPress={startEditing}
-                  style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}
-                >
-                  <Ionicons color={COLORS.primary} name="pencil" size={14} />
-                  <Text style={styles.editButtonText}>Edit profile</Text>
-                </Pressable>
-              ) : null}
-            </View>
+            <PageHeader
+              actions={!editing ? (
+                <Button icon="pencil" label="Edit" onPress={startEditing} size="sm" variant="secondary" />
+              ) : undefined}
+              eyebrow="Your space"
+              title="Profile"
+            />
 
-            <View style={styles.heroCard}>
-              <View style={styles.heroGlowLarge} />
-              <View style={styles.heroGlowSmall} />
+            <Reveal index={1} style={[styles.heroCard, gradientStyle(GRADIENT.hero, GRADIENT.heroFallback)]}>
               <View style={styles.avatarShell}>
                 {avatarUrl ? (
-                  <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+                  <Image accessibilityLabel={`${displayName}'s photo`} source={{ uri: avatarUrl }} style={styles.avatarImage} />
                 ) : (
                   <Text style={styles.avatarInitials}>{initials || 'P'}</Text>
                 )}
@@ -338,7 +331,8 @@ export default function ProfileScreen() {
                   <Image
                     accessibilityIgnoresInvertColors
                     source={require('../../assets/images/google-logo.png')}
-                    style={styles.googleBadgeImage}
+                    resizeMode="contain"
+        style={styles.googleBadgeImage}
                   />
                 </View>
               </View>
@@ -346,56 +340,39 @@ export default function ProfileScreen() {
               <Text style={styles.heroUsername}>@{profile?.username ?? 'member'}</Text>
               <View style={styles.googleConnected}>
                 <View style={styles.connectedDot} />
-                <Text style={styles.googleConnectedText}>Google account connected</Text>
+                <Text numberOfLines={1} style={styles.googleConnectedText}>Google account connected</Text>
               </View>
-            </View>
+            </Reveal>
 
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{groupCount}</Text>
-                <Text style={styles.statLabel}>GROUPS</Text>
-              </View>
+            <Reveal index={2} style={styles.statsRow}>
+              <Stat label="Groups" value={String(groupCount)} />
               <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{eventCount}</Text>
-                <Text style={styles.statLabel}>EVENTS MADE</Text>
-              </View>
+              <Stat label="Events made" value={String(eventCount)} />
               <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>2×</Text>
-                <Text style={styles.statLabel}>DAILY BRIEFS</Text>
-              </View>
-            </View>
+              <Stat label="Member since" value={memberSinceYear ? String(memberSinceYear) : '—'} />
+            </Reveal>
 
-            {error ? (
-              <View style={styles.messageError}>
-                <Ionicons color={COLORS.danger} name="alert-circle" size={17} />
-                <Text style={styles.messageErrorText}>{error}</Text>
-              </View>
-            ) : null}
-            {savedMessage ? (
-              <View style={styles.messageSuccess}>
-                <Ionicons color={COLORS.green} name="checkmark-circle" size={17} />
-                <Text style={styles.messageSuccessText}>{savedMessage}</Text>
-              </View>
-            ) : null}
+            <Banner message={error} />
+            <Banner message={savedMessage} tone="success" />
 
             {editing ? (
-              <View style={styles.formCard}>
-                <View style={styles.sectionHeadingRow}>
-                  <View>
-                    <Text style={styles.sectionTitle}>Edit your details</Text>
-                    <Text style={styles.sectionSubtitle}>How your groups see you</Text>
+              <Reveal style={styles.formCard}>
+                <View style={styles.formHeader}>
+                  <View style={styles.formHeaderCopy}>
+                    <Text accessibilityRole="header" style={styles.formTitle}>Edit your details</Text>
+                    <Text style={styles.formSubtitle}>How your groups see you</Text>
                   </View>
-                  <Pressable onPress={cancelEditing} hitSlop={10}>
-                    <Ionicons color={COLORS.muted} name="close" size={23} />
-                  </Pressable>
+                  <IconButton icon="close" label="Cancel editing" onPress={cancelEditing} tone="ghost" />
                 </View>
 
-                <Text style={styles.inputLabel}>DISPLAY NAME</Text>
+                <View style={styles.labelRow}>
+                  <Text style={styles.inputLabel}>Display name</Text>
+                  <Text style={styles.characterCount}>{form.displayName.length}/60</Text>
+                </View>
                 <View style={styles.inputShell}>
-                  <Ionicons color={COLORS.faint} name="person-outline" size={18} />
+                  <Ionicons color={COLORS.muted} name="person-outline" size={18} />
                   <TextInput
+                    accessibilityLabel="Display name"
                     autoCapitalize="words"
                     maxLength={60}
                     onChangeText={(displayNameValue) =>
@@ -406,13 +383,13 @@ export default function ProfileScreen() {
                     style={styles.input}
                     value={form.displayName}
                   />
-                  <Text style={styles.characterCount}>{form.displayName.length}/60</Text>
                 </View>
 
-                <Text style={styles.inputLabel}>USERNAME</Text>
+                <Text style={styles.inputLabel}>Username</Text>
                 <View style={styles.inputShell}>
                   <Text style={styles.atSymbol}>@</Text>
                   <TextInput
+                    accessibilityLabel="Username"
                     autoCapitalize="none"
                     autoCorrect={false}
                     maxLength={30}
@@ -431,11 +408,12 @@ export default function ProfileScreen() {
                 <Text style={styles.inputHint}>3–30 lowercase letters, numbers, dots, or underscores.</Text>
 
                 <View style={styles.labelRow}>
-                  <Text style={styles.inputLabel}>BIO</Text>
-                  <Text style={styles.bioCount}>{form.bio.length}/300</Text>
+                  <Text style={styles.inputLabel}>Bio</Text>
+                  <Text style={styles.characterCount}>{form.bio.length}/300</Text>
                 </View>
                 <View style={[styles.inputShell, styles.bioShell]}>
                   <TextInput
+                    accessibilityLabel="Bio"
                     maxLength={300}
                     multiline
                     onChangeText={(bioValue) =>
@@ -450,8 +428,10 @@ export default function ProfileScreen() {
                 </View>
 
                 <View style={styles.labelRow}>
-                  <Text style={styles.inputLabel}>TIMEZONE</Text>
+                  <Text style={styles.inputLabel}>Timezone</Text>
                   <Pressable
+                    accessibilityRole="button"
+                    hitSlop={8}
                     onPress={() =>
                       setForm((current) => ({ ...current, timezone: deviceTimezone }))
                     }
@@ -460,8 +440,9 @@ export default function ProfileScreen() {
                   </Pressable>
                 </View>
                 <View style={styles.inputShell}>
-                  <Ionicons color={COLORS.faint} name="globe-outline" size={18} />
+                  <Ionicons color={COLORS.muted} name="globe-outline" size={18} />
                   <TextInput
+                    accessibilityLabel="Timezone"
                     autoCapitalize="none"
                     autoCorrect={false}
                     onChangeText={(timezoneValue) =>
@@ -476,131 +457,104 @@ export default function ProfileScreen() {
                 <Text style={styles.inputHint}>Used to display event times and reminders correctly.</Text>
 
                 <View style={styles.formActions}>
-                  <Pressable
+                  <Button
                     disabled={saving}
+                    label="Cancel"
                     onPress={cancelEditing}
-                    style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    disabled={!dirty || saving}
+                    size="md"
+                    style={styles.cancelButton}
+                    variant="secondary"
+                  />
+                  <Button
+                    disabled={!dirty}
+                    icon="checkmark"
+                    label={saving ? 'Saving…' : 'Save changes'}
+                    loading={saving}
                     onPress={() => void saveProfile()}
-                    style={({ pressed }) => [
-                      styles.saveButton,
-                      (!dirty || saving) && styles.disabledButton,
-                      pressed && dirty && styles.pressed,
-                    ]}
-                  >
-                    {saving ? (
-                      <ActivityIndicator color="#FFFFFF" size="small" />
-                    ) : (
-                      <Ionicons color="#FFFFFF" name="checkmark" size={18} />
-                    )}
-                    <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save changes'}</Text>
-                  </Pressable>
+                    size="md"
+                    style={styles.saveButton}
+                  />
                 </View>
-              </View>
+              </Reveal>
             ) : (
               <>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>About you</Text>
-                  <Text style={styles.sectionSubtitle}>Visible to people in your groups</Text>
-                </View>
-                <View style={styles.aboutCard}>
+                <SectionHeader subtitle="Visible to people in your groups" title="About you" />
+                <Reveal style={styles.aboutCard}>
                   <View style={styles.aboutIcon}>
                     <Ionicons color={COLORS.primary} name="chatbubble-ellipses-outline" size={20} />
                   </View>
                   <Text style={[styles.aboutText, !profile?.bio && styles.aboutPlaceholder]}>
                     {profile?.bio || 'Add a short bio so your groups know a little more about you.'}
                   </Text>
-                </View>
+                </Reveal>
 
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Account</Text>
-                  <Text style={styles.sectionSubtitle}>Your identity and planning preferences</Text>
-                </View>
-                <View style={styles.settingsCard}>
-                  <View style={styles.settingRow}>
-                    <View style={[styles.settingIcon, { backgroundColor: COLORS.primarySoft }]}>
-                      <Ionicons color={COLORS.primary} name="mail-outline" size={19} />
-                    </View>
-                    <View style={styles.settingCopy}>
-                      <Text style={styles.settingLabel}>Google email</Text>
-                      <Text numberOfLines={1} style={styles.settingValue}>{user?.email ?? 'Connected account'}</Text>
-                    </View>
-                    <Ionicons color={COLORS.green} name="checkmark-circle" size={20} />
-                  </View>
+                <SectionHeader subtitle="Your identity and planning preferences" title="Account" />
+                <Reveal style={styles.settingsCard}>
+                  <SettingRow
+                    background={COLORS.primarySoft}
+                    color={COLORS.primary}
+                    icon="mail-outline"
+                    label="Google email"
+                    trailing={<Ionicons accessibilityLabel="Verified" color={COLORS.green} name="checkmark-circle" size={20} />}
+                    value={user?.email ?? 'Connected account'}
+                  />
                   <View style={styles.settingSeparator} />
-                  <View style={styles.settingRow}>
-                    <View style={[styles.settingIcon, { backgroundColor: COLORS.orangeSoft }]}>
-                      <Ionicons color={COLORS.orange} name="globe-outline" size={19} />
-                    </View>
-                    <View style={styles.settingCopy}>
-                      <Text style={styles.settingLabel}>Timezone</Text>
-                      <Text style={styles.settingValue}>{profile?.timezone ?? deviceTimezone}</Text>
-                    </View>
-                  </View>
+                  <SettingRow
+                    accessibilityHint="Connect Google Calendar and manage automatic imports"
+                    background={COLORS.blueSoft}
+                    color={COLORS.blue}
+                    icon="calendar-outline"
+                    label="Google Calendar"
+                    onPress={() => router.push('/settings/google-calendar' as Href)}
+                    value="Import and automatically sync your events"
+                  />
                   <View style={styles.settingSeparator} />
-                  <View style={styles.settingRow}>
-                    <View style={[styles.settingIcon, { backgroundColor: COLORS.greenSoft }]}>
-                      <Ionicons color={COLORS.green} name="sparkles-outline" size={19} />
-                    </View>
-                    <View style={styles.settingCopy}>
-                      <Text style={styles.settingLabel}>AI group brief</Text>
-                      <Text style={styles.settingValue}>Future update · Not active yet</Text>
-                    </View>
-                  </View>
+                  <SettingRow
+                    background={COLORS.orangeSoft}
+                    color={COLORS.orange}
+                    icon="globe-outline"
+                    label="Timezone"
+                    value={profile?.timezone ?? deviceTimezone}
+                  />
                   <View style={styles.settingSeparator} />
-                  <View style={styles.themeSetting}>
-                    <View style={styles.themeSettingHeader}>
-                      <View style={[styles.settingIcon, { backgroundColor: COLORS.primarySoft }]}>
-                        <Ionicons color={COLORS.primary} name="contrast-outline" size={19} />
+                  <SettingRow
+                    background={COLORS.greenSoft}
+                    color={COLORS.green}
+                    icon="sparkles-outline"
+                    label="AI group brief"
+                    trailing={(
+                      <View style={styles.soonPill}>
+                        <Text style={styles.soonPillText}>Soon</Text>
                       </View>
-                      <View style={styles.settingCopy}>
-                        <Text style={styles.settingLabel}>Appearance</Text>
-                        <Text style={styles.settingValue}>Choose how Planado looks</Text>
-                      </View>
-                    </View>
-                    <View style={styles.themeOptions}>
-                      {THEME_OPTIONS.map((option) => {
-                        const active = themeMode === option.value;
-                        return (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: active }}
-                            key={option.value}
-                            onPress={() => setThemeMode(option.value)}
-                            style={({ pressed }) => [
-                              styles.themeOption,
-                              active && styles.themeOptionActive,
-                              pressed && styles.pressed,
-                            ]}
-                          >
-                            <Ionicons
-                              color={active ? '#FFFFFF' : COLORS.muted}
-                              name={option.icon}
-                              size={15}
-                            />
-                            <Text style={[styles.themeOptionText, active && styles.themeOptionTextActive]}>
-                              {option.label}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-                </View>
+                    )}
+                    value="A future update · Not active yet"
+                  />
+                </Reveal>
 
-                <Text style={styles.googleNote}>Your email and profile photo come from Google. Change them in your Google account, then sign in again to refresh them here.</Text>
+                <SectionHeader subtitle="Choose how Planado looks" title="Appearance" />
+                <Reveal>
+                  <SegmentedControl
+                    onChange={setThemeMode}
+                    options={[
+                      { value: 'system', label: 'System', icon: 'phone-portrait-outline' },
+                      { value: 'light', label: 'Light', icon: 'sunny-outline' },
+                      { value: 'dark', label: 'Dark', icon: 'moon-outline' },
+                    ]}
+                    value={themeMode}
+                  />
+                </Reveal>
 
-                <Pressable
+                <Text style={styles.googleNote}>
+                  Your email and profile photo come from Google. Change them in your Google account, then sign in again to refresh them here.
+                </Text>
+
+                <Button
+                  icon="log-out-outline"
+                  label="Sign out"
                   onPress={confirmSignOut}
-                  style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}
-                >
-                  <Ionicons color={COLORS.danger} name="log-out-outline" size={20} />
-                  <Text style={styles.signOutText}>Sign out</Text>
-                </Pressable>
+                  style={styles.signOutButton}
+                  variant="danger"
+                />
 
                 <Text style={styles.memberSince}>
                   {profile?.created_at
@@ -616,84 +570,195 @@ export default function ProfileScreen() {
   );
 }
 
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.statItem}>
+      <Text style={styles.statNumber}>{value}</Text>
+      <Text numberOfLines={1} style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function SettingRow({
+  accessibilityHint,
+  background,
+  color,
+  icon,
+  label,
+  onPress,
+  trailing,
+  value,
+}: {
+  accessibilityHint?: string;
+  background: string;
+  color: string;
+  icon: IconName;
+  label: string;
+  onPress?: () => void;
+  trailing?: ReactNode;
+  value: string;
+}) {
+  const content = (
+    <>
+      <View style={[styles.settingIcon, { backgroundColor: background }]}>
+        <Ionicons color={color} name={icon} size={19} />
+      </View>
+      <View style={styles.settingCopy}>
+        <Text style={styles.settingLabel}>{label}</Text>
+        <Text numberOfLines={1} style={styles.settingValue}>{value}</Text>
+      </View>
+      {trailing ?? (onPress ? <Ionicons color={COLORS.faint} name="chevron-forward" size={18} /> : null)}
+    </>
+  );
+
+  if (!onPress) return <View style={styles.settingRow}>{content}</View>;
+
+  return (
+    <Pressable
+      accessibilityHint={accessibilityHint}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.settingRow, pressed && styles.settingRowPressed]}
+    >
+      {content}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: COLORS.background },
-  scrollContent: { paddingBottom: 38 },
-  page: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 13 },
-  loadingPage: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  loadingLogo: { width: 52, height: 52, marginBottom: 4, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: COLORS.primary },
-  loadingText: { color: COLORS.muted, fontSize: 11 },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eyebrow: { color: COLORS.primary, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
-  pageTitle: { marginTop: 3, color: COLORS.ink, fontSize: 28, fontWeight: '800', letterSpacing: -1 },
-  editButton: { minHeight: 40, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, backgroundColor: COLORS.surface },
-  editButtonText: { color: COLORS.primary, fontSize: 11, fontWeight: '800' },
-  pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
-  heroCard: { marginTop: 18, minHeight: 238, padding: 22, overflow: 'hidden', alignItems: 'center', borderRadius: 28, backgroundColor: COLORS.navy },
-  heroGlowLarge: { position: 'absolute', width: 210, height: 210, top: -115, right: -55, borderRadius: 105, backgroundColor: '#696BD6', opacity: 0.55 },
-  heroGlowSmall: { position: 'absolute', width: 135, height: 135, bottom: -86, left: 15, borderRadius: 70, backgroundColor: '#4FA8D4', opacity: 0.22 },
-  avatarShell: { width: 88, height: 88, padding: 3, borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)', borderRadius: 30, backgroundColor: '#8B8CE8' },
-  avatarImage: { width: '100%', height: '100%', borderRadius: 25 },
-  avatarInitials: { flex: 1, color: '#FFFFFF', fontSize: 27, fontWeight: '900', textAlign: 'center', textAlignVertical: 'center' },
-  googleBadge: { position: 'absolute', right: -5, bottom: -5, width: 25, height: 25, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: COLORS.navy, borderRadius: 9, backgroundColor: '#FFFFFF' },
-  googleBadgeImage: { width: 13, height: 13, resizeMode: 'contain' },
-  heroName: { marginTop: 16, color: '#FFFFFF', fontSize: 21, fontWeight: '800', letterSpacing: -0.5 },
-  heroUsername: { marginTop: 3, color: '#B8B8D9', fontSize: 11, fontWeight: '600' },
-  googleConnected: { marginTop: 13, paddingVertical: 6, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.09)' },
-  connectedDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#72DCB0' },
-  googleConnectedText: { color: '#D7D7E9', fontSize: 8, fontWeight: '700' },
-  statsRow: { marginTop: 12, minHeight: 82, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 22, backgroundColor: COLORS.surface },
-  statItem: { flex: 1, alignItems: 'center' },
-  statNumber: { color: COLORS.ink, fontSize: 19, fontWeight: '900' },
-  statLabel: { marginTop: 5, color: COLORS.faint, fontSize: 7, fontWeight: '900', letterSpacing: 0.65 },
-  statDivider: { width: 1, height: 34, backgroundColor: COLORS.line },
-  messageError: { marginTop: 13, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, backgroundColor: COLORS.redSoft },
-  messageErrorText: { flex: 1, color: COLORS.red, fontSize: 10, lineHeight: 15 },
-  messageSuccess: { marginTop: 13, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, backgroundColor: COLORS.greenSoft },
-  messageSuccessText: { flex: 1, color: COLORS.green, fontSize: 10, lineHeight: 15 },
-  formCard: { marginTop: 18, padding: 18, borderWidth: 1, borderColor: COLORS.line, borderRadius: 24, backgroundColor: COLORS.surface },
-  sectionHeadingRow: { marginBottom: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  sectionHeader: { marginTop: 25, marginBottom: 11 },
-  sectionTitle: { color: COLORS.ink, fontSize: 17, fontWeight: '800', letterSpacing: -0.25 },
-  sectionSubtitle: { marginTop: 3, color: COLORS.faint, fontSize: 9 },
-  inputLabel: { marginTop: 16, marginBottom: 7, color: COLORS.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.85 },
+  scrollContent: { paddingBottom: 40 },
+  page: { width: '100%', maxWidth: PAGE.maxWidth, alignSelf: 'center', paddingHorizontal: PAGE.gutter, paddingTop: 12 },
+  heroCard: {
+    marginTop: 18,
+    paddingVertical: 26,
+    paddingHorizontal: 22,
+    overflow: 'hidden',
+    alignItems: 'center',
+    borderRadius: RADIUS.xxl,
+    boxShadow: SHADOW.md,
+  },
+  avatarShell: {
+    width: 92,
+    height: 92,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.85)',
+    borderRadius: 46,
+    backgroundColor: '#7C7EEB',
+  },
+  avatarImage: { width: 86, height: 86, borderRadius: 43 },
+  avatarInitials: { color: '#FFFFFF', fontSize: 30, lineHeight: 36, fontWeight: '800' },
+  googleBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#2E2F86',
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+  },
+  googleBadgeImage: { width: 14, height: 14 },
+  heroName: { width: '100%', ...TYPE.title2, marginTop: 16, color: '#FFFFFF', fontWeight: '800', textAlign: 'center' },
+  heroUsername: { width: '100%', ...TYPE.callout, marginTop: 2, color: 'rgba(255,255,255,0.78)', textAlign: 'center' },
+  googleConnected: {
+    minHeight: 30,
+    marginTop: 14,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderRadius: RADIUS.pill,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  connectedDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#7BE3BA' },
+  googleConnectedText: { ...TYPE.footnote, color: '#FFFFFF', fontWeight: '600' },
+  statsRow: {
+    marginTop: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surface,
+  },
+  statItem: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
+  statNumber: { fontSize: 22, lineHeight: 28, color: COLORS.ink, fontWeight: '800' },
+  statLabel: { ...TYPE.footnote, marginTop: 2, color: COLORS.muted },
+  statDivider: { width: 1, height: 36, backgroundColor: COLORS.line },
+  formCard: {
+    marginTop: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
+  },
+  formHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  formHeaderCopy: { flex: 1 },
+  formTitle: { ...TYPE.title3, color: COLORS.ink },
+  formSubtitle: { ...TYPE.subhead, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  inputLabel: { ...TYPE.subhead, marginTop: 18, marginBottom: 8, color: COLORS.ink, fontWeight: '700' },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  bioCount: { marginBottom: 7, color: COLORS.faint, fontSize: 8 },
-  useDevice: { marginBottom: 7, color: COLORS.primary, fontSize: 8, fontWeight: '800' },
-  inputShell: { minHeight: 51, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, backgroundColor: COLORS.input },
-  input: { flex: 1, paddingVertical: 12, color: COLORS.ink, fontSize: 12 },
-  characterCount: { color: COLORS.faint, fontSize: 8 },
-  atSymbol: { color: COLORS.primary, fontSize: 16, fontWeight: '800' },
-  inputHint: { marginTop: 6, color: COLORS.faint, fontSize: 8, lineHeight: 12 },
-  bioShell: { minHeight: 104, alignItems: 'flex-start' },
-  bioInput: { minHeight: 98, lineHeight: 18 },
-  formActions: { marginTop: 22, flexDirection: 'row', gap: 10 },
-  cancelButton: { flex: 1, minHeight: 49, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, backgroundColor: COLORS.surface },
-  cancelButtonText: { color: COLORS.muted, fontSize: 11, fontWeight: '800' },
-  saveButton: { flex: 1.6, minHeight: 49, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 15, backgroundColor: COLORS.primary },
-  disabledButton: { opacity: 0.45 },
-  saveButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
-  aboutCard: { minHeight: 84, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 13, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.surface },
-  aboutIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: COLORS.primarySoft },
-  aboutText: { flex: 1, color: COLORS.ink, fontSize: 11, lineHeight: 17 },
+  characterCount: { ...TYPE.footnote, marginBottom: 8, color: COLORS.muted },
+  useDevice: { ...TYPE.subhead, marginBottom: 8, color: COLORS.primary, fontWeight: '700' },
+  inputShell: {
+    minHeight: 52,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.input,
+  },
+  input: { ...TYPE.body, flex: 1, paddingVertical: 12, color: COLORS.ink },
+  atSymbol: { ...TYPE.headline, color: COLORS.primary },
+  inputHint: { ...TYPE.footnote, marginTop: 8, color: COLORS.muted },
+  bioShell: { minHeight: 108, alignItems: 'flex-start' },
+  bioInput: { minHeight: 100 },
+  formActions: { marginTop: 24, flexDirection: 'row', gap: 10 },
+  cancelButton: { flex: 1 },
+  saveButton: { flex: 1.6 },
+  aboutCard: {
+    minHeight: 84,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surface,
+  },
+  aboutIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.sm, backgroundColor: COLORS.primarySoft },
+  aboutText: { ...TYPE.body, flex: 1, color: COLORS.ink },
   aboutPlaceholder: { color: COLORS.muted, fontStyle: 'italic' },
-  settingsCard: { overflow: 'hidden', borderWidth: 1, borderColor: COLORS.line, borderRadius: 21, backgroundColor: COLORS.surface },
-  settingRow: { minHeight: 72, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  settingIcon: { width: 39, height: 39, alignItems: 'center', justifyContent: 'center', borderRadius: 13 },
+  settingsCard: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surface,
+  },
+  settingRow: { minHeight: 72, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  settingRowPressed: { backgroundColor: COLORS.elevated },
+  settingIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.sm },
   settingCopy: { flex: 1 },
-  settingLabel: { color: COLORS.ink, fontSize: 11, fontWeight: '800' },
-  settingValue: { marginTop: 4, color: COLORS.muted, fontSize: 9 },
-  settingSeparator: { height: 1, marginLeft: 66, backgroundColor: COLORS.line },
-  themeSetting: { paddingHorizontal: 15, paddingVertical: 14 },
-  themeSettingHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  themeOptions: { marginTop: 12, padding: 4, flexDirection: 'row', gap: 4, borderRadius: 14, backgroundColor: COLORS.elevated },
-  themeOption: { flex: 1, minHeight: 39, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 11 },
-  themeOptionActive: { backgroundColor: COLORS.primary },
-  themeOptionText: { color: COLORS.muted, fontSize: 9, fontWeight: '800' },
-  themeOptionTextActive: { color: '#FFFFFF' },
-  googleNote: { marginTop: 12, paddingHorizontal: 5, color: COLORS.faint, fontSize: 8, lineHeight: 13, textAlign: 'center' },
-  signOutButton: { minHeight: 50, marginTop: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: COLORS.redSoft, borderRadius: 16, backgroundColor: COLORS.redSoft },
-  signOutText: { color: COLORS.danger, fontSize: 11, fontWeight: '800' },
-  memberSince: { marginTop: 13, color: COLORS.faint, fontSize: 8, textAlign: 'center' },
+  settingLabel: { ...TYPE.bodyStrong, color: COLORS.ink },
+  settingValue: { ...TYPE.subhead, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  settingSeparator: { height: 1, marginLeft: 70, backgroundColor: COLORS.line },
+  soonPill: { paddingVertical: 3, paddingHorizontal: 9, borderRadius: RADIUS.pill, backgroundColor: COLORS.greenSoft },
+  soonPillText: { ...TYPE.footnote, color: COLORS.green, fontWeight: '700' },
+  googleNote: { ...TYPE.footnote, marginTop: 16, paddingHorizontal: 8, color: COLORS.muted, textAlign: 'center' },
+  signOutButton: { marginTop: 22 },
+  memberSince: { ...TYPE.footnote, marginTop: 14, color: COLORS.muted, textAlign: 'center' },
 });

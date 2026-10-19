@@ -1,6 +1,7 @@
 import { makeRedirectUri } from 'expo-auth-session';
 import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import * as WebBrowser from 'expo-web-browser';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session, User } from '@supabase/supabase-js';
 
 import { supabase } from './supabase';
@@ -20,6 +21,22 @@ const googleRedirectUri = makeRedirectUri({
   scheme: 'planado',
   path: 'auth/callback',
 });
+const ONBOARDING_CACHE_PREFIX = '@planado/onboarding-completed:';
+
+function onboardingCacheKey(userId: string) {
+  return `${ONBOARDING_CACHE_PREFIX}${userId}`;
+}
+
+export async function getCachedOnboardingStatus(userId: string) {
+  const cached = await AsyncStorage.getItem(onboardingCacheKey(userId));
+  if (cached === 'true') return true;
+  if (cached === 'false') return false;
+  return null;
+}
+
+export async function setCachedOnboardingStatus(userId: string, completed: boolean) {
+  await AsyncStorage.setItem(onboardingCacheKey(userId), String(completed));
+}
 
 async function createSessionFromUrl(url: string): Promise<Session> {
   const { params, errorCode } = QueryParams.getQueryParams(url);
@@ -132,21 +149,27 @@ export async function getCurrentUser(): Promise<User | null> {
   return data.user;
 }
 
-export async function getMyProfile() {
-  const user = await getCurrentUser();
+export async function getMyProfile(knownUserId?: string) {
+  const userId = knownUserId ?? (await getCurrentUser())?.id;
 
-  if (!user) {
+  if (!userId) {
     return null;
   }
 
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .eq('id', user.id)
+    .eq('id', userId)
     .single();
 
   if (error) {
     throw error;
+  }
+
+  if (typeof data.onboarding_completed === 'boolean') {
+    void setCachedOnboardingStatus(userId, data.onboarding_completed).catch((cacheError) => {
+      console.warn('Could not cache onboarding status:', cacheError);
+    });
   }
 
   return data;
@@ -168,6 +191,12 @@ export async function updateMyProfile(changes: ProfileUpdate) {
 
   if (error) {
     throw error;
+  }
+
+  if (typeof data.onboarding_completed === 'boolean') {
+    void setCachedOnboardingStatus(user.id, data.onboarding_completed).catch((cacheError) => {
+      console.warn('Could not cache onboarding status:', cacheError);
+    });
   }
 
   return data;

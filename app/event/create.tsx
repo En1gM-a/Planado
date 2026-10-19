@@ -1,8 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { type Href, Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,8 +16,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { PlanadoAlert as Alert } from '../../components/PlanadoAlert';
 import { PlanadoDateTimePicker } from '../../components/PlanadoDateTimePicker';
 import { PlanadoLoader } from '../../components/PlanadoLoader';
+import { AnimatedSwitch } from '../../components/ui/AnimatedSwitch';
+import { Banner } from '../../components/ui/Banner';
+import { Button } from '../../components/ui/Button';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { TopBar } from '../../components/ui/Headers';
+import { PressableScale } from '../../components/ui/PressableScale';
+import { Reveal } from '../../components/ui/Reveal';
 import { useAuth } from '../../hooks/useAuth';
 import { COLORS } from '../../theme/colors';
+import { GRADIENT, gradientStyle, ON_PRIMARY, PAGE, RADIUS, SHADOW, TYPE } from '../../theme/tokens';
 import {
   createEvent,
   getMyCalendarGroups,
@@ -215,7 +222,16 @@ export default function CreateEventScreen() {
 
   function confirmPicker(value: Date) {
     if (openPicker === 'date') setDate(dateInputValue(value));
-    if (openPicker === 'start') setStartTime(timeInputValue(value));
+    if (openPicker === 'start') {
+      const previousStart = parseLocalDateTime(date, startTime);
+      const previousEnd = parseLocalDateTime(date, endTime);
+      setStartTime(timeInputValue(value));
+      // Moving the start keeps the event's length, ending by midnight at the latest.
+      if (previousStart && previousEnd && previousEnd >= previousStart) {
+        const end = new Date(value.getTime() + previousEnd.getTime() - previousStart.getTime());
+        setEndTime(end.getDate() === value.getDate() ? timeInputValue(end) : '23:59');
+      }
+    }
     if (openPicker === 'end') setEndTime(timeInputValue(value));
   }
 
@@ -227,184 +243,204 @@ export default function CreateEventScreen() {
     );
   }
 
+  const previewWhen = allDay
+    ? `${friendlyDate(date)} · All day`
+    : `${friendlyDate(date)} · ${friendlyTime(date, startTime)} – ${friendlyTime(date, endTime)}`;
+
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.page}>
-            <View style={styles.header}>
-              <Pressable onPress={() => router.back()} style={styles.headerButton}>
-                <Ionicons color={COLORS.ink} name="arrow-back" size={21} />
-              </Pressable>
-              <View style={styles.headerCopy}>
-                <Text style={styles.eyebrow}>PLAN SOMETHING TOGETHER</Text>
-                <Text style={styles.headerTitle}>Create event</Text>
-              </View>
-              <View style={[styles.headerButton, styles.headerSpark]}>
-                <Ionicons color={COLORS.primary} name="sparkles" size={19} />
-              </View>
-            </View>
+            <TopBar eyebrow="Plan something together" onBack={() => router.back()} title="Create event" />
 
-            <View style={styles.heroCard}>
-              <View style={styles.heroGlow} />
+            <Reveal style={[styles.heroCard, gradientStyle(GRADIENT.hero, GRADIENT.heroFallback)]}>
               <View style={[styles.heroIcon, { backgroundColor: color }]}>
-                <Ionicons color="#FFFFFF" name="calendar-outline" size={24} />
+                <Ionicons color="#FFFFFF" name={CATEGORIES.find((option) => option.value === category)?.icon ?? 'calendar-outline'} size={24} />
               </View>
               <View style={styles.heroCopy}>
+                <Text style={styles.heroEyebrow}>Preview</Text>
                 <Text numberOfLines={1} style={styles.heroTitle}>{title.trim() || 'Your next plan'}</Text>
-                <Text style={styles.heroBody}>{date} · {allDay ? 'All day' : `${startTime} – ${endTime}`}</Text>
+                <Text numberOfLines={2} style={styles.heroBody}>{previewWhen}</Text>
               </View>
-            </View>
+              {isImportant ? <Ionicons accessibilityLabel="Important" color="#FFD089" name="star" size={20} /> : null}
+            </Reveal>
 
-            {error ? (
-              <View style={styles.errorBanner}>
-                <Ionicons color={COLORS.red} name="alert-circle" size={17} />
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
+            <Banner message={error} />
 
             {!groups.length ? (
-              <View style={styles.emptyGroups}>
-                <Ionicons color={COLORS.primary} name="people-outline" size={28} />
-                <Text style={styles.emptyGroupsTitle}>Create or join a group first</Text>
-                <Text style={styles.emptyGroupsBody}>Every Planado event belongs to a planning space, even when its visibility is private.</Text>
-                <Pressable onPress={() => router.replace('/(tabs)/groups' as Href)} style={styles.emptyGroupsButton}>
-                  <Text style={styles.emptyGroupsButtonText}>Go to groups</Text>
-                </Pressable>
-              </View>
+              <EmptyState
+                body="Every Planado event belongs to a planning space, even when its visibility is private."
+                icon="people-outline"
+                style={styles.emptyGroups}
+                title="Create or join a group first"
+              >
+                <Button label="Go to groups" onPress={() => router.replace('/(tabs)/groups' as Href)} size="sm" />
+              </EmptyState>
             ) : (
               <>
-                <SectionTitle title="Event details" subtitle="The essentials everyone needs" />
-                <View style={styles.formCard}>
-                  <FieldLabel label="TITLE" count={`${title.length}/120`} />
+                <SectionTitle subtitle="The essentials everyone needs" title="Event details" />
+                <Reveal style={styles.formCard}>
+                  <FieldLabel count={`${title.length}/120`} first label="Title" />
                   <View style={styles.inputShell}>
-                    <Ionicons color={COLORS.faint} name="create-outline" size={18} />
-                    <TextInput maxLength={120} onChangeText={setTitle} placeholder="Study session" placeholderTextColor={COLORS.faint} style={styles.input} value={title} />
+                    <Ionicons color={COLORS.muted} name="create-outline" size={18} />
+                    <TextInput accessibilityLabel="Title" maxLength={120} onChangeText={setTitle} placeholder="Study session" placeholderTextColor={COLORS.faint} style={styles.input} value={title} />
                   </View>
-                  <FieldLabel label="LOCATION" count={`${location.length}/300`} />
+                  <FieldLabel count={`${location.length}/300`} label="Location" />
                   <View style={styles.inputShell}>
-                    <Ionicons color={COLORS.faint} name="location-outline" size={18} />
-                    <TextInput maxLength={300} onChangeText={setLocation} placeholder="Library, room, or link" placeholderTextColor={COLORS.faint} style={styles.input} value={location} />
+                    <Ionicons color={COLORS.muted} name="location-outline" size={18} />
+                    <TextInput accessibilityLabel="Location" maxLength={300} onChangeText={setLocation} placeholder="Library, room, or link" placeholderTextColor={COLORS.faint} style={styles.input} value={location} />
                   </View>
-                  <FieldLabel label="DESCRIPTION" count={`${description.length}/5000`} />
+                  <FieldLabel count={`${description.length}/5000`} label="Description" />
                   <View style={[styles.inputShell, styles.textAreaShell]}>
-                    <TextInput maxLength={5000} multiline onChangeText={setDescription} placeholder="Add notes, what to bring, or an agenda..." placeholderTextColor={COLORS.faint} style={[styles.input, styles.textArea]} textAlignVertical="top" value={description} />
+                    <TextInput accessibilityLabel="Description" maxLength={5000} multiline onChangeText={setDescription} placeholder="Add notes, what to bring, or an agenda..." placeholderTextColor={COLORS.faint} style={[styles.input, styles.textArea]} textAlignVertical="top" value={description} />
                   </View>
-                </View>
+                </Reveal>
 
-                <SectionTitle title="Planning space" subtitle="Choose who this belongs to" />
-                <ScrollView contentContainerStyle={styles.groupRow} horizontal showsHorizontalScrollIndicator={false}>
+                <SectionTitle subtitle="Choose who this belongs to" title="Planning space" />
+                <ScrollView contentContainerStyle={styles.groupRow} horizontal showsHorizontalScrollIndicator={false} style={styles.groupScroller}>
                   {groups.map((group) => {
                     const active = group.id === groupId;
                     return (
-                      <Pressable key={group.id} onPress={() => chooseGroup(group)} style={[styles.groupChip, active && styles.groupChipActive]}>
-                        <View style={[styles.groupDot, { backgroundColor: active ? '#FFFFFF' : group.color }]} />
+                      <PressableScale
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: active }}
+                        key={group.id}
+                        onPress={() => chooseGroup(group)}
+                        scaleTo={0.95}
+                        style={[styles.groupChip, active && styles.groupChipActive]}
+                      >
+                        <View style={[styles.groupDot, { backgroundColor: active ? ON_PRIMARY : group.color }]} />
                         <Text numberOfLines={1} style={[styles.groupChipText, active && styles.groupChipTextActive]}>{group.name}</Text>
-                        {active ? <Ionicons color="#FFFFFF" name="checkmark" size={14} /> : null}
-                      </Pressable>
+                        {active ? <Ionicons color={ON_PRIMARY} name="checkmark" size={16} /> : null}
+                      </PressableScale>
                     );
                   })}
                 </ScrollView>
 
-                <SectionTitle title="When" subtitle="Use your local date and time" />
-                <View style={styles.formCard}>
-                  <FieldLabel label="DATE" />
-                  <Pressable onPress={() => setOpenPicker('date')} style={({ pressed }) => [styles.inputShell, pressed && styles.inputShellPressed]}>
-                    <Ionicons color={COLORS.primary} name="calendar-outline" size={18} />
-                    <View style={styles.pickerFieldCopy}>
-                      <Text style={styles.pickerFieldValue}>{friendlyDate(date)}</Text>
-                      <Text style={styles.pickerFieldHint}>Tap to open calendar</Text>
-                    </View>
-                    <Ionicons color={COLORS.faint} name="chevron-down" size={17} />
-                  </Pressable>
-                  <Pressable onPress={() => setAllDay((value) => !value)} style={styles.switchRow}>
+                <SectionTitle subtitle="Use your local date and time" title="When" />
+                <Reveal style={styles.formCard}>
+                  <FieldLabel first label="Date" />
+                  <PickerField
+                    accessibilityLabel={`Date, ${friendlyDate(date)}`}
+                    hint="Tap to open calendar"
+                    icon="calendar-outline"
+                    onPress={() => setOpenPicker('date')}
+                    value={friendlyDate(date)}
+                  />
+                  <Pressable
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: allDay }}
+                    onPress={() => setAllDay((value) => !value)}
+                    style={styles.switchRow}
+                  >
                     <View style={styles.switchCopy}>
                       <Text style={styles.switchTitle}>All-day event</Text>
                       <Text style={styles.switchBody}>Keep the whole date reserved</Text>
                     </View>
-                    <View style={[styles.switchTrack, allDay && styles.switchTrackActive]}>
-                      <View style={[styles.switchThumb, allDay && styles.switchThumbActive]} />
-                    </View>
+                    <AnimatedSwitch value={allDay} />
                   </Pressable>
                   {!allDay ? (
-                    <View style={styles.timeRow}>
+                    <Reveal distance={6} style={styles.timeRow}>
                       <View style={styles.timeField}>
-                        <FieldLabel label="START" />
-                        <Pressable onPress={() => setOpenPicker('start')} style={({ pressed }) => [styles.inputShell, pressed && styles.inputShellPressed]}>
-                          <Ionicons color={COLORS.primary} name="time-outline" size={18} />
-                          <Text style={styles.pickerFieldValue}>{friendlyTime(date, startTime)}</Text>
-                          <Ionicons color={COLORS.faint} name="chevron-down" size={16} />
-                        </Pressable>
+                        <FieldLabel first label="Start" />
+                        <PickerField
+                          accessibilityLabel={`Start time, ${friendlyTime(date, startTime)}`}
+                          icon="time-outline"
+                          onPress={() => setOpenPicker('start')}
+                          value={friendlyTime(date, startTime)}
+                        />
                       </View>
                       <View style={styles.timeField}>
-                        <FieldLabel label="END" />
-                        <Pressable onPress={() => setOpenPicker('end')} style={({ pressed }) => [styles.inputShell, pressed && styles.inputShellPressed]}>
-                          <Ionicons color={COLORS.primary} name="time-outline" size={18} />
-                          <Text style={styles.pickerFieldValue}>{friendlyTime(date, endTime)}</Text>
-                          <Ionicons color={COLORS.faint} name="chevron-down" size={16} />
-                        </Pressable>
+                        <FieldLabel first label="End" />
+                        <PickerField
+                          accessibilityLabel={`End time, ${friendlyTime(date, endTime)}`}
+                          icon="time-outline"
+                          onPress={() => setOpenPicker('end')}
+                          value={friendlyTime(date, endTime)}
+                        />
                       </View>
-                    </View>
+                    </Reveal>
                   ) : null}
-                </View>
+                </Reveal>
 
-                <SectionTitle title="Category" subtitle="Make it easy to recognize" />
+                <SectionTitle subtitle="Make it easy to recognize" title="Category" />
                 <View style={styles.categoryGrid}>
                   {CATEGORIES.map((option) => {
                     const active = category === option.value;
                     return (
-                      <Pressable key={option.value} onPress={() => setCategory(option.value)} style={[styles.categoryChip, active && styles.categoryChipActive]}>
+                      <PressableScale
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: active }}
+                        key={option.value}
+                        onPress={() => setCategory(option.value)}
+                        scaleTo={0.94}
+                        style={[styles.categoryChip, active && styles.categoryChipActive]}
+                      >
                         <Ionicons color={active ? COLORS.primary : COLORS.muted} name={option.icon} size={17} />
                         <Text style={[styles.categoryText, active && styles.categoryTextActive]}>{option.label}</Text>
-                      </Pressable>
+                      </PressableScale>
                     );
                   })}
                 </View>
 
-                <SectionTitle title="Priority" subtitle="Keep critical plans visible" />
-                <Pressable
+                <SectionTitle subtitle="Keep critical plans visible" title="Priority" />
+                <PressableScale
                   accessibilityRole="switch"
                   accessibilityState={{ checked: isImportant }}
                   onPress={() => setIsImportant((current) => !current)}
+                  scaleTo={0.985}
                   style={[styles.importantCard, isImportant && styles.importantCardActive]}
                 >
                   <View style={[styles.importantIcon, isImportant && styles.importantIconActive]}>
-                    <Ionicons color={isImportant ? '#FFFFFF' : COLORS.orange} name="star" size={21} />
+                    <Ionicons color={isImportant ? ON_PRIMARY : COLORS.orange} name="star" size={21} />
                   </View>
                   <View style={styles.importantCopy}>
                     <Text style={[styles.importantTitle, isImportant && styles.importantTitleActive]}>Important event</Text>
                     <Text style={styles.importantBody}>Pins this event in the group widget with a days-left countdown until it ends.</Text>
                   </View>
-                  <View style={[styles.switchTrack, isImportant && styles.importantSwitchTrack]}>
-                    <View style={[styles.switchThumb, isImportant && styles.switchThumbActive]} />
-                  </View>
-                </Pressable>
+                  <AnimatedSwitch activeColor={COLORS.orange} value={isImportant} />
+                </PressableScale>
 
-                <SectionTitle title="Privacy and color" subtitle="Control what the group sees" />
-                <View style={styles.formCard}>
+                <SectionTitle subtitle="Control what the group sees" title="Privacy and color" />
+                <Reveal style={styles.formCard}>
                   <View style={styles.visibilityRow}>
                     {(['group', 'private'] as const).map((option) => {
                       const active = visibility === option;
                       return (
-                        <Pressable key={option} onPress={() => setVisibility(option)} style={[styles.visibilityCard, active && styles.visibilityCardActive]}>
-                          <Ionicons color={active ? COLORS.primary : COLORS.muted} name={option === 'group' ? 'people-outline' : 'lock-closed-outline'} size={20} />
-                          <Text style={[styles.visibilityTitle, active && styles.visibilityTitleActive]}>{option === 'group' ? 'Group event' : 'Private event'}</Text>
-                          <Text style={styles.visibilityBody}>{option === 'group' ? 'Visible to all members' : 'Only visible to you'}</Text>
-                        </Pressable>
+                        <ChoiceCard
+                          active={active}
+                          body={option === 'group' ? 'Visible to all members' : 'Only visible to you'}
+                          icon={<Ionicons color={active ? COLORS.primary : COLORS.muted} name={option === 'group' ? 'people-outline' : 'lock-closed-outline'} size={20} />}
+                          key={option}
+                          onPress={() => setVisibility(option)}
+                          title={option === 'group' ? 'Group event' : 'Private event'}
+                        />
                       );
                     })}
                   </View>
-                  <FieldLabel label="EVENT COLOR" />
+                  <FieldLabel label="Event color" />
                   <View style={styles.colorRow}>
-                    {EVENT_COLORS.map((option) => (
-                      <Pressable key={option} onPress={() => setColor(option)} style={[styles.colorOption, { backgroundColor: option }, color === option && styles.colorOptionActive]}>
-                        {color === option ? <Ionicons color="#FFFFFF" name="checkmark" size={17} /> : null}
-                      </Pressable>
-                    ))}
+                    {EVENT_COLORS.map((option, index) => {
+                      const active = color === option;
+                      return (
+                        <PressableScale
+                          accessibilityLabel={`Color ${index + 1}`}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: active }}
+                          key={option}
+                          onPress={() => setColor(option)}
+                          scaleTo={0.9}
+                          style={[styles.colorOption, { backgroundColor: option }, active && styles.colorOptionActive]}
+                        >
+                          {active ? <Ionicons color="#FFFFFF" name="checkmark" size={18} /> : null}
+                        </PressableScale>
+                      );
+                    })}
                   </View>
-                </View>
+                </Reveal>
 
-                <SectionTitle title="After the event" subtitle="Choose whether Planado keeps it in your history" />
+                <SectionTitle subtitle="Choose whether Planado keeps it in your history" title="After the event" />
                 <View style={styles.retentionRow}>
                   {([
                     {
@@ -422,9 +458,12 @@ export default function CreateEventScreen() {
                   ]).map((option) => {
                     const active = retention === option.value;
                     return (
-                      <Pressable
+                      <PressableScale
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: active }}
                         key={option.value}
                         onPress={() => setRetention(option.value)}
+                        scaleTo={0.985}
                         style={[styles.retentionCard, active && styles.retentionCardActive]}
                       >
                         <View style={[styles.retentionIcon, active && styles.retentionIconActive]}>
@@ -437,17 +476,20 @@ export default function CreateEventScreen() {
                         <Ionicons
                           color={active ? COLORS.primary : COLORS.faint}
                           name={active ? 'checkmark-circle' : 'ellipse-outline'}
-                          size={20}
+                          size={22}
                         />
-                      </Pressable>
+                      </PressableScale>
                     );
                   })}
                 </View>
 
-                <Pressable disabled={saving} onPress={() => void submit()} style={({ pressed }) => [styles.submitButton, saving && styles.submitButtonDisabled, pressed && styles.pressed]}>
-                  {saving ? <ActivityIndicator color="#FFFFFF" /> : <Ionicons color="#FFFFFF" name="checkmark-circle-outline" size={21} />}
-                  <Text style={styles.submitButtonText}>{saving ? 'Creating event...' : 'Create event'}</Text>
-                </Pressable>
+                <Button
+                  icon="checkmark-circle-outline"
+                  label={saving ? 'Creating event…' : 'Create event'}
+                  loading={saving}
+                  onPress={() => void submit()}
+                  style={styles.submitButton}
+                />
               </>
             )}
           </View>
@@ -456,6 +498,7 @@ export default function CreateEventScreen() {
           mode={openPicker === 'date' ? 'date' : 'time'}
           onClose={() => setOpenPicker(null)}
           onConfirm={confirmPicker}
+          relativeTo={openPicker === 'end' ? parseLocalDateTime(date, startTime) ?? undefined : undefined}
           title={openPicker === 'date' ? 'Event date' : openPicker === 'end' ? 'End time' : 'Start time'}
           value={currentPickerValue()}
           visible={openPicker !== null}
@@ -468,18 +511,77 @@ export default function CreateEventScreen() {
 function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>
       <Text style={styles.sectionSubtitle}>{subtitle}</Text>
     </View>
   );
 }
 
-function FieldLabel({ label, count }: { label: string; count?: string }) {
+function FieldLabel({ count, first, label }: { count?: string; first?: boolean; label: string }) {
   return (
-    <View style={styles.labelRow}>
+    <View style={[styles.labelRow, first && styles.labelRowFirst]}>
       <Text style={styles.fieldLabel}>{label}</Text>
       {count ? <Text style={styles.fieldCount}>{count}</Text> : null}
     </View>
+  );
+}
+
+function PickerField({
+  accessibilityLabel,
+  hint,
+  icon,
+  onPress,
+  value,
+}: {
+  accessibilityLabel: string;
+  hint?: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+  value: string;
+}) {
+  return (
+    <Pressable
+      accessibilityHint={hint}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.inputShell, pressed && styles.inputShellPressed]}
+    >
+      <Ionicons color={COLORS.primary} name={icon} size={18} />
+      <View style={styles.pickerFieldCopy}>
+        <Text numberOfLines={1} style={styles.pickerFieldValue}>{value}</Text>
+        {hint ? <Text style={styles.pickerFieldHint}>{hint}</Text> : null}
+      </View>
+      <Ionicons color={COLORS.muted} name="chevron-down" size={17} />
+    </Pressable>
+  );
+}
+
+function ChoiceCard({
+  active,
+  body,
+  icon,
+  onPress,
+  title,
+}: {
+  active: boolean;
+  body: string;
+  icon: ReactNode;
+  onPress: () => void;
+  title: string;
+}) {
+  return (
+    <PressableScale
+      accessibilityRole="radio"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      scaleTo={0.97}
+      style={[styles.visibilityCard, active && styles.visibilityCardActive]}
+    >
+      {icon}
+      <Text style={[styles.visibilityTitle, active && styles.visibilityTitleActive]}>{title}</Text>
+      <Text style={styles.visibilityBody}>{body}</Text>
+    </PressableScale>
   );
 }
 
@@ -487,93 +589,156 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: COLORS.background },
   scrollContent: { paddingBottom: 44 },
-  page: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 18 },
-  loadingPage: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  loadingText: { color: COLORS.muted, fontSize: 10 },
-  header: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, backgroundColor: COLORS.surface },
-  headerSpark: { backgroundColor: COLORS.primarySoft },
-  headerCopy: { flex: 1 },
-  eyebrow: { color: COLORS.primary, fontSize: 8, fontWeight: '900', letterSpacing: 0.9 },
-  headerTitle: { marginTop: 3, color: COLORS.ink, fontSize: 23, fontWeight: '900', letterSpacing: -0.5 },
-  heroCard: { minHeight: 94, padding: 16, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 23, backgroundColor: '#292953' },
-  heroGlow: { position: 'absolute', width: 140, height: 140, top: -80, right: -25, borderRadius: 70, backgroundColor: '#686AD6', opacity: 0.5 },
-  heroIcon: { width: 49, height: 49, alignItems: 'center', justifyContent: 'center', borderRadius: 17 },
+  page: { width: '100%', maxWidth: PAGE.maxWidth, alignSelf: 'center', paddingHorizontal: PAGE.gutter },
+  heroCard: {
+    minHeight: 100,
+    marginTop: 4,
+    padding: 16,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderRadius: RADIUS.xl,
+    boxShadow: SHADOW.md,
+  },
+  heroIcon: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
+    borderRadius: RADIUS.md,
+  },
   heroCopy: { flex: 1 },
-  heroTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
-  heroBody: { marginTop: 5, color: '#C7C7E2', fontSize: 9 },
-  errorBanner: { marginTop: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, backgroundColor: COLORS.redSoft },
-  errorText: { flex: 1, color: COLORS.red, fontSize: 9, lineHeight: 14 },
-  sectionHeader: { marginTop: 24, marginBottom: 10 },
-  sectionTitle: { color: COLORS.ink, fontSize: 17, fontWeight: '900' },
-  sectionSubtitle: { marginTop: 3, color: COLORS.faint, fontSize: 9 },
-  formCard: { padding: 15, borderWidth: 1, borderColor: COLORS.line, borderRadius: 22, backgroundColor: COLORS.surface },
-  labelRow: { marginTop: 14, marginBottom: 7, flexDirection: 'row', justifyContent: 'space-between' },
-  fieldLabel: { color: COLORS.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.75 },
-  fieldCount: { color: COLORS.faint, fontSize: 7 },
-  inputShell: { minHeight: 50, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9, borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, backgroundColor: COLORS.input },
+  heroEyebrow: { ...TYPE.overline, color: '#C9CAFF' },
+  heroTitle: { ...TYPE.headline, marginTop: 2, color: '#FFFFFF', fontWeight: '800' },
+  heroBody: { ...TYPE.subhead, marginTop: 2, color: 'rgba(255,255,255,0.82)' },
+  emptyGroups: { marginTop: 20 },
+  sectionHeader: { marginTop: 28, marginBottom: 12 },
+  sectionTitle: { ...TYPE.title3, color: COLORS.ink },
+  sectionSubtitle: { ...TYPE.subhead, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  formCard: {
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
+  },
+  labelRow: { marginTop: 16, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  labelRowFirst: { marginTop: 0 },
+  fieldLabel: { ...TYPE.subhead, color: COLORS.ink, fontWeight: '700' },
+  fieldCount: { ...TYPE.footnote, color: COLORS.muted },
+  inputShell: {
+    minHeight: 52,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.input,
+  },
   inputShellPressed: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
-  input: { flex: 1, paddingVertical: 11, color: COLORS.ink, fontSize: 11 },
-  pickerFieldCopy: { flex: 1, paddingVertical: 9 },
-  pickerFieldValue: { flex: 1, color: COLORS.ink, fontSize: 10, fontWeight: '800' },
-  pickerFieldHint: { marginTop: 2, color: COLORS.faint, fontSize: 7 },
-  textAreaShell: { minHeight: 100, alignItems: 'flex-start' },
-  textArea: { minHeight: 95, lineHeight: 17 },
-  groupRow: { gap: 8 },
-  groupChip: { maxWidth: 210, minHeight: 43, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, backgroundColor: COLORS.surface },
+  input: { ...TYPE.body, flex: 1, paddingVertical: 12, color: COLORS.ink },
+  pickerFieldCopy: { flex: 1, paddingVertical: 10 },
+  pickerFieldValue: { ...TYPE.bodyStrong, color: COLORS.ink },
+  pickerFieldHint: { ...TYPE.footnote, marginTop: 1, color: COLORS.muted },
+  textAreaShell: { minHeight: 104, alignItems: 'flex-start' },
+  textArea: { minHeight: 96 },
+  groupScroller: { marginHorizontal: -PAGE.gutter },
+  groupRow: { paddingHorizontal: PAGE.gutter, gap: 8 },
+  groupChip: {
+    maxWidth: 220,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surface,
+  },
   groupChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primary },
-  groupDot: { width: 9, height: 9, borderRadius: 5 },
-  groupChipText: { flexShrink: 1, color: COLORS.muted, fontSize: 9, fontWeight: '800' },
-  groupChipTextActive: { color: '#FFFFFF' },
-  switchRow: { minHeight: 66, marginTop: 14, paddingHorizontal: 3, flexDirection: 'row', alignItems: 'center' },
+  groupDot: { width: 10, height: 10, borderRadius: 5 },
+  groupChipText: { ...TYPE.callout, flexShrink: 1, color: COLORS.ink, fontWeight: '600' },
+  groupChipTextActive: { color: ON_PRIMARY, fontWeight: '700' },
+  switchRow: { minHeight: 68, marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
   switchCopy: { flex: 1 },
-  switchTitle: { color: COLORS.ink, fontSize: 11, fontWeight: '900' },
-  switchBody: { marginTop: 3, color: COLORS.muted, fontSize: 8 },
-  switchTrack: { width: 44, height: 26, padding: 3, justifyContent: 'center', borderRadius: 13, backgroundColor: COLORS.line },
-  switchTrackActive: { backgroundColor: COLORS.primary },
-  switchThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFFFFF' },
-  switchThumbActive: { alignSelf: 'flex-end' },
-  timeRow: { flexDirection: 'row', gap: 10 },
+  switchTitle: { ...TYPE.bodyStrong, color: COLORS.ink },
+  switchBody: { ...TYPE.subhead, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  timeRow: { marginTop: 4, flexDirection: 'row', gap: 10 },
   timeField: { flex: 1 },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  categoryChip: { minHeight: 42, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, backgroundColor: COLORS.surface },
+  categoryChip: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.pill,
+    backgroundColor: COLORS.surface,
+  },
   categoryChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
-  categoryText: { color: COLORS.muted, fontSize: 9, fontWeight: '800' },
-  categoryTextActive: { color: COLORS.primary },
-  importantCard: { minHeight: 94, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, backgroundColor: COLORS.surface },
+  categoryText: { ...TYPE.callout, color: COLORS.ink, fontWeight: '600' },
+  categoryTextActive: { color: COLORS.primary, fontWeight: '700' },
+  importantCard: {
+    minHeight: 96,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.surface,
+  },
   importantCardActive: { borderColor: COLORS.orange, backgroundColor: COLORS.orangeSoft },
-  importantIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: COLORS.orangeSoft },
+  importantIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.md, backgroundColor: COLORS.orangeSoft },
   importantIconActive: { backgroundColor: COLORS.orange },
   importantCopy: { flex: 1 },
-  importantTitle: { color: COLORS.ink, fontSize: 11, fontWeight: '900' },
+  importantTitle: { ...TYPE.bodyStrong, color: COLORS.ink },
   importantTitleActive: { color: COLORS.orange },
-  importantBody: { marginTop: 4, color: COLORS.muted, fontSize: 8, lineHeight: 12 },
-  importantSwitchTrack: { backgroundColor: COLORS.orange },
-  visibilityRow: { flexDirection: 'row', gap: 9 },
-  visibilityCard: { flex: 1, minHeight: 103, padding: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 17, backgroundColor: COLORS.input },
+  importantBody: { ...TYPE.subhead, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  visibilityRow: { flexDirection: 'row', gap: 10 },
+  visibilityCard: {
+    flex: 1,
+    minHeight: 108,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.input,
+  },
   visibilityCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
-  visibilityTitle: { marginTop: 9, color: COLORS.ink, fontSize: 10, fontWeight: '900' },
+  visibilityTitle: { ...TYPE.callout, marginTop: 10, color: COLORS.ink, fontWeight: '700' },
   visibilityTitleActive: { color: COLORS.primary },
-  visibilityBody: { marginTop: 3, color: COLORS.muted, fontSize: 7, lineHeight: 11 },
-  colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  colorOption: { width: 39, height: 39, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: COLORS.surface, borderRadius: 14 },
-  colorOptionActive: { borderColor: COLORS.line, transform: [{ scale: 1.08 }] },
-  retentionRow: { gap: 9 },
-  retentionCard: { minHeight: 82, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, backgroundColor: COLORS.surface },
+  visibilityBody: { ...TYPE.footnote, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  colorOption: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: COLORS.surface, borderRadius: 22 },
+  colorOptionActive: { borderColor: COLORS.primarySoft, boxShadow: SHADOW.sm },
+  retentionRow: { gap: 10 },
+  retentionCard: {
+    minHeight: 84,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderWidth: 1.5,
+    borderColor: COLORS.line,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.surface,
+  },
   retentionCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
-  retentionIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: COLORS.elevated },
+  retentionIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.sm, backgroundColor: COLORS.elevatedStrong },
   retentionIconActive: { backgroundColor: COLORS.surface },
   retentionCopy: { flex: 1 },
-  retentionTitle: { color: COLORS.ink, fontSize: 10, fontWeight: '900' },
+  retentionTitle: { ...TYPE.bodyStrong, color: COLORS.ink },
   retentionTitleActive: { color: COLORS.primary },
-  retentionBody: { marginTop: 4, color: COLORS.muted, fontSize: 8, lineHeight: 12 },
-  submitButton: { minHeight: 55, marginTop: 25, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 17, backgroundColor: COLORS.primary },
-  submitButtonDisabled: { opacity: 0.65 },
-  submitButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
-  pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] },
-  emptyGroups: { marginTop: 20, padding: 25, alignItems: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 23, backgroundColor: COLORS.surface },
-  emptyGroupsTitle: { marginTop: 12, color: COLORS.ink, fontSize: 15, fontWeight: '900' },
-  emptyGroupsBody: { maxWidth: 340, marginTop: 6, color: COLORS.muted, fontSize: 9, lineHeight: 15, textAlign: 'center' },
-  emptyGroupsButton: { minHeight: 43, marginTop: 16, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: COLORS.primary },
-  emptyGroupsButtonText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
+  retentionBody: { ...TYPE.subhead, marginTop: 2, color: COLORS.muted, fontWeight: '400' },
+  submitButton: { marginTop: 28 },
 });

@@ -96,6 +96,7 @@ export async function getCalendarEvents(
     .select(
       'id, group_id, created_by, title, description, location, category, start_time, end_time, is_all_day, is_important, color, visibility, status, retention_policy, delete_after, groups(name)',
     )
+    .eq('status', 'active')
     .lte('start_time', rangeEnd.toISOString())
     .gte('end_time', rangeStart.toISOString())
     .order('start_time', { ascending: true });

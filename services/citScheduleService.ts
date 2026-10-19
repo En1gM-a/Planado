@@ -4,6 +4,10 @@ import { refreshGroupWidgetIfSelected } from './widgetService';
 
 export const WILDCAT_ONE_URL = 'https://yeahsleepwellgoodluckveralove.vercel.app/';
 export const WILDCAT_IMPORT_WEEKS = 16;
+export const WILDCAT_MAX_IMPORT_DAYS = 370;
+
+const MAX_IMPORT_EVENTS = 2_500;
+const IMPORT_PAGE_SIZE = 1_000;
 
 export type WildcatDay = {
   idDay: number | null;
@@ -44,7 +48,12 @@ type ImportScheduleInput = {
   payload: WildcatSchedulePayload;
   groupId: string;
   color: string;
-  weeks?: number;
+  endDate: Date;
+};
+
+type ExistingImportedEvent = {
+  external_id: string | null;
+  id: string;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -178,11 +187,31 @@ function localDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function eventRows(input: ImportScheduleInput, userId: string) {
+function importDateRange(endDate: Date) {
+  if (!(endDate instanceof Date) || Number.isNaN(endDate.getTime())) {
+    throw new Error('Choose a valid semester end date.');
+  }
+
   const firstDate = new Date();
   firstDate.setHours(0, 0, 0, 0);
-  const lastDate = new Date(firstDate);
-  lastDate.setDate(lastDate.getDate() + (input.weeks ?? WILDCAT_IMPORT_WEEKS) * 7);
+  const lastDate = new Date(endDate);
+  lastDate.setHours(23, 59, 59, 999);
+  if (lastDate < firstDate) {
+    throw new Error('The semester end date cannot be before today.');
+  }
+
+  const maximumDate = new Date(firstDate);
+  maximumDate.setDate(maximumDate.getDate() + WILDCAT_MAX_IMPORT_DAYS);
+  maximumDate.setHours(23, 59, 59, 999);
+  if (lastDate > maximumDate) {
+    throw new Error(`Choose an end date within the next ${WILDCAT_MAX_IMPORT_DAYS} days.`);
+  }
+
+  return { firstDate, lastDate };
+}
+
+function eventRows(input: ImportScheduleInput, userId: string) {
+  const { firstDate, lastDate } = importDateRange(input.endDate);
 
   const rows: Array<Record<string, unknown>> = [];
   for (const course of input.payload.items) {
@@ -230,14 +259,40 @@ function eventRows(input: ImportScheduleInput, userId: string) {
             status: 'active',
             retention_policy: 'class_schedule',
             external_source: 'wildcat_one',
-            external_id: `${meeting.courseOfferingScheduleID}:${dayKey}:${localDateKey(date)}`.slice(0, 240),
+            external_id: `${input.groupId}:${meeting.courseOfferingScheduleID}:${dayKey}:${localDateKey(date)}`.slice(0, 240),
           });
+          if (rows.length > MAX_IMPORT_EVENTS) {
+            throw new Error('This schedule contains too many class dates to import safely. Choose an earlier semester end date.');
+          }
           date.setDate(date.getDate() + 7);
         }
       }
     }
   }
-  return rows;
+  return { firstDate, lastDate, rows };
+}
+
+async function getExistingImportedEvents(userId: string, groupId: string, firstDate: Date) {
+  const existing: ExistingImportedEvent[] = [];
+
+  for (let from = 0; ; from += IMPORT_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, external_id')
+      .eq('created_by', userId)
+      .eq('group_id', groupId)
+      .eq('external_source', 'wildcat_one')
+      .gte('start_time', firstDate.toISOString())
+      .order('id', { ascending: true })
+      .range(from, from + IMPORT_PAGE_SIZE - 1);
+
+    if (error) throw error;
+    const page = (data ?? []) as ExistingImportedEvent[];
+    existing.push(...page);
+    if (page.length < IMPORT_PAGE_SIZE) break;
+  }
+
+  return existing;
 }
 
 export async function importWildcatSchedule(input: ImportScheduleInput) {
@@ -245,8 +300,14 @@ export async function importWildcatSchedule(input: ImportScheduleInput) {
   if (!user) throw new Error('You must be signed in to import a schedule.');
   if (!input.groupId) throw new Error('Choose a CIT-U group first.');
 
-  const rows = eventRows(input, user.id);
+  const { firstDate, lastDate, rows } = eventRows(input, user.id);
   if (!rows.length) throw new Error('No valid class times were found in this schedule.');
+
+  const existing = await getExistingImportedEvents(user.id, input.groupId, firstDate);
+  const existingExternalIds = new Set(
+    existing.flatMap((event) => event.external_id ? [event.external_id] : []),
+  );
+  const desiredExternalIds = new Set(rows.map((row) => String(row.external_id)));
 
   for (let index = 0; index < rows.length; index += 200) {
     const { error } = await supabase
@@ -257,9 +318,35 @@ export async function importWildcatSchedule(input: ImportScheduleInput) {
     if (error) throw error;
   }
 
+  const staleIds = existing
+    .filter((event) => !event.external_id || !desiredExternalIds.has(event.external_id))
+    .map((event) => event.id);
+
+  for (let index = 0; index < staleIds.length; index += 200) {
+    const { error } = await supabase
+      .from('events')
+      .delete()
+      .eq('created_by', user.id)
+      .eq('group_id', input.groupId)
+      .eq('external_source', 'wildcat_one')
+      .in('id', staleIds.slice(index, index + 200));
+    if (error) throw error;
+  }
+
   void refreshGroupWidgetIfSelected(input.groupId).catch((widgetError) => {
     console.warn('Schedule imported, but the widget could not refresh:', widgetError);
   });
 
-  return { imported: rows.length, weeks: input.weeks ?? WILDCAT_IMPORT_WEEKS };
+  const updated = rows.reduce((total, row) => (
+    total + (existingExternalIds.has(String(row.external_id)) ? 1 : 0)
+  ), 0);
+
+  return {
+    added: rows.length - updated,
+    endDate: localDateKey(lastDate),
+    imported: rows.length,
+    removed: staleIds.length,
+    total: rows.length,
+    updated,
+  };
 }

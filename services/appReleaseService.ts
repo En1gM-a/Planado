@@ -1,5 +1,5 @@
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
 import { supabase } from './supabase';
 
@@ -11,15 +11,41 @@ export type AppRelease = {
   title: string;
   message: string;
   download_url: string;
+  required_capability: string | null;
   is_active: boolean;
 };
 
 export type AvailableNativeUpdate = {
   currentBuildNumber: number;
   currentVersionName: string;
+  nativeCapabilityMissing: boolean;
   required: boolean;
   release: AppRelease;
 };
+
+type PlanadoWidgetCapabilities = {
+  saveGroupWidgetDataV2?: (...args: unknown[]) => Promise<boolean>;
+  saveGroupWidgetDataV3?: (...args: unknown[]) => Promise<boolean>;
+};
+
+function supportsRequiredCapability(capability: string | null) {
+  if (!capability) return true;
+
+  if (capability === 'important_widget_v2') {
+    const widget = NativeModules.PlanadoWidget as PlanadoWidgetCapabilities | undefined;
+    return typeof widget?.saveGroupWidgetDataV2 === 'function';
+  }
+
+  // The redesigned home-screen widget (structured rows, accent color, quick add).
+  if (capability === 'planado_widget_v3') {
+    const widget = NativeModules.PlanadoWidget as PlanadoWidgetCapabilities | undefined;
+    return typeof widget?.saveGroupWidgetDataV3 === 'function';
+  }
+
+  // Unknown capabilities should fail closed so an outdated native app is not
+  // incorrectly treated as current.
+  return false;
+}
 
 function supportedPlatform(): AppRelease['platform'] | null {
   if (Platform.OS === 'android' || Platform.OS === 'ios') return Platform.OS;
@@ -52,19 +78,25 @@ export async function getAvailableNativeUpdate(): Promise<AvailableNativeUpdate 
   const { data, error } = await supabase
     .from('app_releases')
     .select(
-      'platform, latest_build_number, minimum_supported_build_number, version_name, title, message, download_url, is_active',
+      'platform, latest_build_number, minimum_supported_build_number, version_name, title, message, download_url, required_capability, is_active',
     )
     .eq('platform', platform)
     .eq('is_active', true)
     .maybeSingle();
 
   if (error) throw error;
-  if (!data || currentBuildNumber >= data.latest_build_number) return null;
+  if (!data) return null;
+
+  const nativeCapabilityMissing = !supportsRequiredCapability(data.required_capability);
+  const newerBuildAvailable = currentBuildNumber < data.latest_build_number;
+  if (!newerBuildAvailable && !nativeCapabilityMissing) return null;
 
   return {
     currentBuildNumber,
     currentVersionName: Constants.expoConfig?.version ?? `Build ${currentBuildNumber}`,
-    required: currentBuildNumber < data.minimum_supported_build_number,
+    nativeCapabilityMissing,
+    required:
+      nativeCapabilityMissing || currentBuildNumber < data.minimum_supported_build_number,
     release: data as AppRelease,
   };
 }
