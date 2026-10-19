@@ -16,7 +16,8 @@ export type AppRelease = {
 };
 
 export type AvailableNativeUpdate = {
-  currentBuildNumber: number;
+  /** Null when the installed build does not report its number (see below). */
+  currentBuildNumber: number | null;
   currentVersionName: string;
   nativeCapabilityMissing: boolean;
   required: boolean;
@@ -70,10 +71,13 @@ function currentNativeBuildNumber() {
 
 export async function getAvailableNativeUpdate(): Promise<AvailableNativeUpdate | null> {
   const platform = supportedPlatform();
+  // expo-constants reports no versionCode on Android, so the build number is
+  // often unknown. The release's required capability still tells an outdated
+  // build apart, so the check carries on without it.
   const currentBuildNumber = currentNativeBuildNumber();
 
   // The browser and Expo Go do not have a Planado native build to replace.
-  if (!platform || currentBuildNumber === null) return null;
+  if (!platform || !NativeModules.PlanadoWidget) return null;
 
   const { data, error } = await supabase
     .from('app_releases')
@@ -88,15 +92,16 @@ export async function getAvailableNativeUpdate(): Promise<AvailableNativeUpdate 
   if (!data) return null;
 
   const nativeCapabilityMissing = !supportsRequiredCapability(data.required_capability);
-  const newerBuildAvailable = currentBuildNumber < data.latest_build_number;
+  const newerBuildAvailable = currentBuildNumber !== null && currentBuildNumber < data.latest_build_number;
   if (!newerBuildAvailable && !nativeCapabilityMissing) return null;
 
   return {
     currentBuildNumber,
-    currentVersionName: Constants.expoConfig?.version ?? `Build ${currentBuildNumber}`,
+    currentVersionName: Constants.expoConfig?.version ?? 'Current build',
     nativeCapabilityMissing,
     required:
-      nativeCapabilityMissing || currentBuildNumber < data.minimum_supported_build_number,
+      nativeCapabilityMissing
+      || (currentBuildNumber !== null && currentBuildNumber < data.minimum_supported_build_number),
     release: data as AppRelease,
   };
 }

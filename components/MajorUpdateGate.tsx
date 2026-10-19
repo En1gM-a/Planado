@@ -148,7 +148,8 @@ export function MajorUpdateGate() {
                 <View style={styles.versionItem}>
                   <Text style={styles.versionLabel}>Installed</Text>
                   <Text style={styles.versionValue}>
-                    {availableUpdate.currentVersionName} · Build {availableUpdate.currentBuildNumber}
+                    {availableUpdate.currentVersionName}
+                    {availableUpdate.currentBuildNumber === null ? '' : ` · Build ${availableUpdate.currentBuildNumber}`}
                   </Text>
                 </View>
                 <Ionicons color={COLORS.faint} name="arrow-forward" size={17} />
