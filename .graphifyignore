@@ -1,0 +1,8 @@
+# Keep the knowledge graph about the app itself.
+# Vendored Claude Code skills, image assets, and generated output.
+.claude/
+assets/
+dist/
+graphify-out/
+*.png
+*.webp

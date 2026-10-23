@@ -27,6 +27,7 @@ export type AvailableNativeUpdate = {
 type PlanadoWidgetCapabilities = {
   saveGroupWidgetDataV2?: (...args: unknown[]) => Promise<boolean>;
   saveGroupWidgetDataV3?: (...args: unknown[]) => Promise<boolean>;
+  refreshWidgets?: () => Promise<boolean>;
 };
 
 function supportsRequiredCapability(capability: string | null) {
@@ -41,6 +42,12 @@ function supportsRequiredCapability(capability: string | null) {
   if (capability === 'planado_widget_v3') {
     const widget = NativeModules.PlanadoWidget as PlanadoWidgetCapabilities | undefined;
     return typeof widget?.saveGroupWidgetDataV3 === 'function';
+  }
+
+  // The widget redraws itself at midnight and when plans start or end.
+  if (capability === 'planado_widget_refresh') {
+    const widget = NativeModules.PlanadoWidget as PlanadoWidgetCapabilities | undefined;
+    return typeof widget?.refreshWidgets === 'function';
   }
 
   // Unknown capabilities should fail closed so an outdated native app is not

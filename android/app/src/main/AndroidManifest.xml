@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <uses-permission android:name="android.permission.INTERNET"/>
+  <!-- The widget redraws exactly when a plan starts or ends and at midnight (calendar exact alarms). -->
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32"/>
+  <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
@@ -36,6 +39,8 @@
       </intent-filter>
       <intent-filter>
         <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+        <action android:name="android.intent.action.TIME_SET"/>
+        <action android:name="android.intent.action.TIMEZONE_CHANGED"/>
       </intent-filter>
       <meta-data android:name="android.appwidget.provider" android:resource="@xml/planado_widget_info"/>
     </receiver>

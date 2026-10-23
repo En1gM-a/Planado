@@ -1,5 +1,6 @@
 package com.planado.app
 
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -48,6 +49,12 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
     appWidgetIds.forEach { widgetId ->
       manager.updateAppWidget(widgetId, buildViews(context, manager, widgetId))
     }
+    scheduleNextRefresh(context)
+  }
+
+  override fun onDisabled(context: Context) {
+    super.onDisabled(context)
+    cancelRefresh(context)
   }
 
   override fun onAppWidgetOptionsChanged(
@@ -63,10 +70,14 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
 
   override fun onReceive(context: Context, intent: Intent) {
     super.onReceive(context, intent)
-    // After an app update the launcher shows the bare initial layout until the
-    // provider pushes views, so re-render from the cached snapshot right away.
-    if (intent.action == ACTION_WIDGET_PINNED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
-      updateAllWidgets(context)
+    when (intent.action) {
+      // After an app update the launcher shows the bare initial layout until the
+      // provider pushes views, so re-render from the cached snapshot right away.
+      ACTION_WIDGET_PINNED,
+      ACTION_REFRESH,
+      Intent.ACTION_MY_PACKAGE_REPLACED,
+      Intent.ACTION_TIME_CHANGED,
+      Intent.ACTION_TIMEZONE_CHANGED -> updateAllWidgets(context)
     }
   }
 
@@ -82,12 +93,21 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
     const val KEY_EVENTS_JSON = "events_json"
     const val KEY_ACCENT_COLOR = "accent_color"
     const val ACTION_WIDGET_PINNED = "com.planado.app.WIDGET_PINNED"
+    const val ACTION_REFRESH = "com.planado.app.WIDGET_REFRESH"
+
+    // Refresh timing: just after a plan ends or the day turns over, never in a tight loop.
+    private const val END_GRACE_MS = 1_000L
+    private const val MIDNIGHT_GRACE_MS = 5_000L
+    private const val MIN_REFRESH_DELAY_MS = 30_000L
+    private const val INEXACT_WINDOW_MS = 10 * 60_000L
 
     // Approximate heights (dp) used to decide how many rows fit the widget.
     private const val CHROME_HEIGHT_DP = 82
     private const val IMPORTANT_ROW_HEIGHT_DP = 36
     private const val SECTION_LABEL_HEIGHT_DP = 26
     private const val EVENT_ROW_HEIGHT_DP = 38
+    private const val EMPTY_ROW_HEIGHT_DP = 24
+    private const val MORE_LINE_HEIGHT_DP = 18
     private const val DEFAULT_HEIGHT_DP = 200
 
     fun updateAllWidgets(context: Context) {
@@ -97,6 +117,87 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
       widgetIds.forEach { widgetId ->
         manager.updateAppWidget(widgetId, buildViews(context, manager, widgetId))
       }
+      scheduleNextRefresh(context)
+    }
+
+    /**
+     * Wakes the widget for the next moment its content changes: a plan starting
+     * or ending, or midnight, when "today" moves on. The periodic update in
+     * planado_widget_info.xml is inexact and can be held back for hours, so it
+     * only stays as a fallback. The alarm does not wake the phone: if it is
+     * asleep, the widget redraws the moment it wakes, when it can be seen.
+     */
+    fun scheduleNextRefresh(context: Context) {
+      val alarms = context.getSystemService(AlarmManager::class.java) ?: return
+      val pending = refreshIntent(context)
+      val provider = ComponentName(context, PlanadoWidgetProvider::class.java)
+      if (AppWidgetManager.getInstance(context).getAppWidgetIds(provider).isEmpty()) {
+        alarms.cancel(pending)
+        return
+      }
+
+      val triggerAt = nextRefreshAt(context, System.currentTimeMillis())
+      try {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()) {
+          alarms.setExact(AlarmManager.RTC, triggerAt, pending)
+        } else {
+          alarms.setWindow(AlarmManager.RTC, triggerAt, INEXACT_WINDOW_MS, pending)
+        }
+      } catch (_: SecurityException) {
+        alarms.setWindow(AlarmManager.RTC, triggerAt, INEXACT_WINDOW_MS, pending)
+      }
+    }
+
+    fun cancelRefresh(context: Context) {
+      context.getSystemService(AlarmManager::class.java)?.cancel(refreshIntent(context))
+    }
+
+    private fun refreshIntent(context: Context): PendingIntent {
+      val intent = Intent(context, PlanadoWidgetProvider::class.java).setAction(ACTION_REFRESH)
+      return PendingIntent.getBroadcast(
+        context,
+        0,
+        intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+      )
+    }
+
+    /** The soonest of: a start or end among today's plans and countdowns, or midnight. */
+    private fun nextRefreshAt(context: Context, now: Long): Long {
+      val preferences = context.getSharedPreferences(PREFS_NAME, 0)
+      val todayKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(now)
+      var next = nextMidnight(now) + MIDNIGHT_GRACE_MS
+      fun consider(time: Long) {
+        if (time > now && time < next) next = time
+      }
+
+      structuredEvents(parseObject(preferences.getString(KEY_EVENTS_JSON, null)), todayKey)?.forEach { event ->
+        consider(event.startMs)
+        if (event.endMs > 0L) consider(event.endMs + END_GRACE_MS)
+      }
+      val important = try {
+        JSONArray(preferences.getString(KEY_IMPORTANT_JSON, "[]"))
+      } catch (_: Exception) {
+        JSONArray()
+      }
+      for (index in 0 until important.length()) {
+        val item = important.optJSONObject(index) ?: continue
+        consider(item.optLong("startMs", 0L))
+        val endMs = item.optLong("endMs", 0L)
+        if (endMs > 0L) consider(endMs + END_GRACE_MS)
+      }
+      return max(next, now + MIN_REFRESH_DELAY_MS)
+    }
+
+    private fun nextMidnight(now: Long): Long {
+      return Calendar.getInstance().apply {
+        timeInMillis = now
+        add(Calendar.DAY_OF_YEAR, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+      }.timeInMillis
     }
 
     private fun buildViews(context: Context, manager: AppWidgetManager, widgetId: Int): RemoteViews {
@@ -128,7 +229,7 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
       }
       val legacyTomorrow = if (snapshotDate == todayKey) savedTomorrow else null
 
-      val today = daySchedule(
+      val todayAll = daySchedule(
         structuredSchedule,
         datedSchedule,
         todayKey,
@@ -136,6 +237,9 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
         refreshMessage = "Open Planado to refresh today's plans",
         emptyFallback = "Nothing planned today",
       )
+      // Plans that have ended drop off the list; the summary counts what is left.
+      val finishedToday = todayAll.events.count { it.endMs in 1 until now }
+      val today = todayAll.copy(events = todayAll.events.filterNot { it.endMs in 1 until now })
       val tomorrow = daySchedule(
         structuredSchedule,
         datedSchedule,
@@ -157,7 +261,7 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
       views.setTextViewText(R.id.widget_date_day, todayDate.get(Calendar.DAY_OF_MONTH).toString())
       views.setTextViewText(
         R.id.widget_summary,
-        if (configured) summaryFor(today, now) else "Choose a group to get started",
+        if (configured) summaryFor(today, finishedToday, now) else "Choose a group to get started",
       )
       if (accent != null) applyAccent(context, views, accent)
 
@@ -208,19 +312,25 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
         listId = R.id.widget_today_list,
         emptyId = R.id.widget_today_empty,
         moreId = R.id.widget_today_more,
-        emptyText = if (today.stale) today.emptyMessage else "Your day is wide open.",
+        emptyText = when {
+          today.stale -> today.emptyMessage
+          finishedToday > 0 -> "All done for today"
+          else -> "Your day is wide open."
+        },
       )
-      remaining -= max(todayRows, 1) * EVENT_ROW_HEIGHT_DP
+      // A one-line empty state leaves room for tomorrow, e.g. once today's plans are done.
+      remaining -= if (todayRows == 0) EMPTY_ROW_HEIGHT_DP else todayRows * EVENT_ROW_HEIGHT_DP
+      if (today.events.size > todayRows) remaining -= MORE_LINE_HEIGHT_DP
 
       val tomorrowFits = remaining >= SECTION_LABEL_HEIGHT_DP + EVENT_ROW_HEIGHT_DP - 6
       val tomorrowUseful = !(tomorrow.stale && today.stale)
       if (tomorrowFits && tomorrowUseful) {
         views.setViewVisibility(R.id.widget_tomorrow_section, View.VISIBLE)
-        views.setTextViewText(
-          R.id.widget_tomorrow_label,
-          "TOMORROW · ${SimpleDateFormat("EEE d", locale).format(tomorrowDate.time).uppercase(locale)}",
-        )
         val tomorrowSlots = ((remaining - SECTION_LABEL_HEIGHT_DP) / EVENT_ROW_HEIGHT_DP).coerceIn(1, 4)
+        val tomorrowDay = SimpleDateFormat("EEE d", locale).format(tomorrowDate.time).uppercase(locale)
+        // Tomorrow sits at the bottom edge, so its count goes in the label, not a "+N more" line.
+        val tomorrowCount = if (tomorrow.events.size > tomorrowSlots) " · ${tomorrow.events.size} PLANS" else ""
+        views.setTextViewText(R.id.widget_tomorrow_label, "TOMORROW · $tomorrowDay$tomorrowCount")
         renderDay(
           context,
           views,
@@ -234,6 +344,7 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
           emptyId = R.id.widget_tomorrow_empty,
           moreId = R.id.widget_tomorrow_more,
           emptyText = tomorrow.emptyMessage,
+          showMore = false,
         )
       } else {
         views.setViewVisibility(R.id.widget_tomorrow_section, View.GONE)
@@ -255,6 +366,7 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
       emptyId: Int,
       moreId: Int,
       emptyText: String,
+      showMore: Boolean = true,
     ): Int {
       views.removeAllViews(listId)
 
@@ -274,7 +386,7 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
       }
 
       val hidden = schedule.events.size - visible.size
-      if (hidden > 0) {
+      if (hidden > 0 && showMore) {
         views.setViewVisibility(moreId, View.VISIBLE)
         views.setTextViewText(moreId, "+$hidden more")
       } else {
@@ -350,12 +462,16 @@ class PlanadoWidgetProvider : AppWidgetProvider() {
       views.setInt(R.id.widget_add_fill, "setColorFilter", accent)
     }
 
-    private fun summaryFor(today: DaySchedule, now: Long): String {
+    private fun summaryFor(today: DaySchedule, finished: Int, now: Long): String {
       if (today.stale) return today.emptyMessage
       val count = today.events.size
-      if (count == 0) return today.emptyMessage
+      if (count == 0) return if (finished > 0) "All done for today" else today.emptyMessage
 
-      val label = if (count == 1) "1 plan today" else "$count plans today"
+      val label = when {
+        finished > 0 -> "$count left today"
+        count == 1 -> "1 plan today"
+        else -> "$count plans today"
+      }
       val live = today.events.firstOrNull { it.startMs in 1..now && it.endMs >= now }
       val next = today.events.firstOrNull { !it.allDay && it.startMs > now }
       return when {

@@ -153,6 +153,17 @@ class PlanadoWidgetModule(
     }
   }
 
+  /** Redraws every Planado widget from its saved snapshot and reschedules its next refresh. */
+  @ReactMethod
+  fun refreshWidgets(promise: Promise) {
+    try {
+      PlanadoWidgetProvider.updateAllWidgets(reactContext)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("PLANADO_WIDGET_ERROR", error.message, error)
+    }
+  }
+
   private fun requestPinWidget(): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
     val manager = AppWidgetManager.getInstance(reactContext)
